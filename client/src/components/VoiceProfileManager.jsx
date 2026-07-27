@@ -100,9 +100,9 @@ export default function VoiceProfileManager({ isOpen, onClose, profile, onProfil
     <div style={{
       position: 'fixed',
       inset: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.65)',
-      backdropFilter: 'blur(4px)',
-      zIndex: 100,
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      backdropFilter: 'blur(8px)',
+      zIndex: 1000,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -114,7 +114,11 @@ export default function VoiceProfileManager({ isOpen, onClose, profile, onProfil
         maxHeight: '90vh',
         overflowY: 'auto',
         padding: '32px',
-        position: 'relative'
+        position: 'relative',
+        backgroundColor: 'var(--theme-surface)',
+        border: '1px solid var(--theme-border)',
+        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)',
+        borderRadius: '12px'
       }}>
         {/* Close Button */}
         <button 

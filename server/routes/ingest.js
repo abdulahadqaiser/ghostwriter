@@ -103,18 +103,47 @@ router.post('/article', async (req, res) => {
 
     // Parse with JSDOM + Readability
     const dom = new JSDOM(html, { url: parsedUrl.href });
-    const reader = new Readability(dom.window.document);
+    const document = dom.window.document;
+
+    // ── Pre-clean noisy elements BEFORE Readability sees the DOM ──────────
+    // These patterns consistently produce garbage output: comment sections,
+    // upvote widgets, sidebars, nav bars, footers, and any element whose
+    // class or id contains the word "comment".
+    const noiseSelectors = [
+      '.comments', '#comments',
+      '.post-responses', '.responses',
+      '.upvotes', '.upvote',
+      'footer', 'nav', 'aside',
+      '.sidebar', '#sidebar',
+      '[class*="comment"]', '[id*="comment"]',
+      '[class*="reply"]',   '[id*="reply"]',
+      '[class*="reaction"]',
+      '[class*="widget"]',
+      '[class*="subscribe"]', '[id*="subscribe"]',
+      '[class*="newsletter"]',
+      '[class*="related"]', '[id*="related"]',
+      '[class*="recommend"]',
+      '[class*="social"]',
+      'script', 'style', 'noscript'
+    ];
+    noiseSelectors.forEach(selector => {
+      try {
+        document.querySelectorAll(selector).forEach(el => el.remove());
+      } catch (_) { /* invalid selector — skip */ }
+    });
+
+    const reader = new Readability(document);
     const article = reader.parse();
 
     if (!article || !article.textContent || article.textContent.trim().length < 100) {
       return res.status(400).json({ success: false, error: 'Could not extract readable content from this URL. Try pasting the text manually.' });
     }
 
-    // Clean up whitespace
+    // ── Clean up whitespace ───────────────────────────────────────────────
     const cleanText = article.textContent
-      .replace(/\t/g, ' ')
-      .replace(/[ ]{3,}/g, '  ')
-      .replace(/\n{4,}/g, '\n\n\n')
+      .replace(/\t/g, ' ')           // tabs → single space
+      .replace(/[ ]{3,}/g, '  ')     // 3+ spaces → 2 spaces
+      .replace(/\n{3,}/g, '\n\n')    // 3+ newlines → exactly 2 (prevents blank-wall effect)
       .trim();
 
     res.json({

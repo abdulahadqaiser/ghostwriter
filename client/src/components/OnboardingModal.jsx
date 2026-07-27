@@ -71,19 +71,23 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }) {
       inset: 0,
       backgroundColor: 'rgba(0, 0, 0, 0.75)',
       backdropFilter: 'blur(8px)',
-      zIndex: 100,
+      zIndex: 1000,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '20px'
     }}>
-      <div className="glass-card" style={{
+      <div className="editorial-card" style={{
         maxWidth: '680px',
         width: '100%',
         maxHeight: '90vh',
         overflowY: 'auto',
         padding: '32px',
-        position: 'relative'
+        position: 'relative',
+        backgroundColor: 'var(--theme-surface)',
+        border: '1px solid var(--theme-border)',
+        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)',
+        borderRadius: '12px'
       }}>
         {/* Close Button */}
         <button 
@@ -94,25 +98,32 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }) {
             right: '20px',
             background: 'none',
             border: 'none',
-            color: 'var(--text-muted)',
-            cursor: 'pointer'
+            color: 'var(--theme-text-muted)',
+            cursor: 'pointer',
+            padding: '4px',
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center'
           }}
+          title="Close"
         >
           <CloseIcon style={{ fontSize: 20 }} />
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-          <AutoAwesomeIcon style={{ color: 'var(--accent-purple)', fontSize: 26 }} />
-          <h2 style={{ fontSize: '1.45rem', fontWeight: 700 }}>Seed Your Voice Profile</h2>
+          <AutoAwesomeIcon style={{ color: 'var(--theme-accent)', fontSize: 26 }} />
+          <h2 className="font-serif-title" style={{ fontSize: '1.45rem', fontWeight: 600, color: 'var(--theme-text-main)', margin: 0 }}>
+            Seed Your Voice Profile
+          </h2>
         </div>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '24px' }}>
+        <p style={{ color: 'var(--theme-text-muted)', fontSize: '0.9rem', marginBottom: '24px', lineHeight: '1.6' }}>
           Paste 3–5 examples of your past captions, tweets, or scripts. Ghostwriter extracts your authentic phrasing, rhythm, and style notes to preserve your voice across all platforms.
         </p>
 
         {error && (
           <div style={{
             padding: '12px 16px',
-            borderRadius: 'var(--radius-md)',
+            borderRadius: '6px',
             backgroundColor: 'rgba(239, 68, 68, 0.15)',
             border: '1px solid rgba(239, 68, 68, 0.3)',
             color: '#FCA5A5',
@@ -125,7 +136,7 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }) {
 
         {/* Quick Presets */}
         <div style={{ marginBottom: '20px' }}>
-          <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--theme-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Quick Demo Presets:
           </label>
           <div style={{ display: 'flex', gap: '10px', marginTop: '8px', flexWrap: 'wrap' }}>
@@ -133,7 +144,7 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }) {
               <button
                 key={idx}
                 type="button"
-                className="btn-secondary"
+                className="btn-editorial-secondary"
                 style={{ fontSize: '0.82rem', padding: '6px 12px' }}
                 onClick={() => handlePresetSelect(preset)}
               >
@@ -145,11 +156,11 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }) {
 
         {/* Text Input */}
         <div style={{ marginBottom: '24px' }}>
-          <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', color: 'var(--text-main)' }}>
+          <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', color: 'var(--theme-text-main)' }}>
             Writing Samples (separate entries with --- lines):
           </label>
           <textarea
-            className="custom-input"
+            className="editorial-input"
             rows={8}
             placeholder="Paste your past post #1 here...&#10;&#10;---&#10;&#10;Paste your past post #2 here..."
             value={samplesText}
@@ -159,10 +170,10 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }) {
 
         {/* Action Controls */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-          <button className="btn-secondary" onClick={onClose} disabled={loading}>
+          <button className="btn-editorial-secondary" onClick={onClose} disabled={loading}>
             Cancel
           </button>
-          <button className="btn-primary" onClick={() => handleSave()} disabled={loading}>
+          <button className="btn-editorial-primary" onClick={() => handleSave()} disabled={loading}>
             {loading ? 'Analyzing Voice Profile...' : 'Save Voice Profile'}
           </button>
         </div>
