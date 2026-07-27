@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import DescriptionIcon from '@mui/icons-material/Description';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
@@ -7,9 +7,12 @@ import InstagramIcon from '@mui/icons-material/Instagram';
 import YouTubeIcon from '@mui/icons-material/YouTube';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
+import AddIcon from '@mui/icons-material/Add';
+import HistoryIcon from '@mui/icons-material/History';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import PlatformCard from './PlatformCard';
 import MindStatusCard from './MindStatusCard';
-import { repurposeContent } from '../utils/api';
+import { repurposeContent, fetchRepurposeHistory, deleteHistoryItem } from '../utils/api';
 
 const DEMO_TRANSCRIPTS = [
   {
@@ -22,12 +25,47 @@ const DEMO_TRANSCRIPTS = [
   }
 ];
 
+function formatTimeAgo(dateString) {
+  if (!dateString) return 'Recent';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 export default function RepurposeStudio({ profile, mindsStatus, onProfileUpdate }) {
   const [sourceText, setSourceText] = useState('');
   const [loading, setLoading] = useState(false);
   const [repurposedOutputs, setRepurposedOutputs] = useState(null);
   const [error, setError] = useState(null);
   const [metaInfo, setMetaInfo] = useState(null);
+
+  // ChatGPT-style Past Repurposes History state
+  const [history, setHistory] = useState([]);
+  const [activeHistoryId, setActiveHistoryId] = useState(null);
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  const loadHistory = async () => {
+    try {
+      const res = await fetchRepurposeHistory();
+      if (res.success && Array.isArray(res.history)) {
+        setHistory(res.history);
+      }
+    } catch (err) {
+      console.warn('[RepurposeStudio] Failed to load history:', err.message);
+    }
+  };
 
   const handleRepurpose = async () => {
     if (!sourceText.trim()) {
@@ -47,12 +85,46 @@ export default function RepurposeStudio({ profile, mindsStatus, onProfileUpdate 
 
       setRepurposedOutputs(res.data);
       setMetaInfo(res.meta);
+
+      if (res.historyItem) {
+        setActiveHistoryId(res.historyItem._id);
+        setHistory(prev => [res.historyItem, ...prev.filter(h => h._id !== res.historyItem._id)]);
+      }
       setLoading(false);
     } catch (err) {
       setRepurposedOutputs(null); // ensure no stale cards remain
       setMetaInfo(null);
       setError(err.message);
       setLoading(false);
+    }
+  };
+
+  const handleSelectHistory = (item) => {
+    setActiveHistoryId(item._id);
+    setSourceText(item.sourceContent || '');
+    setRepurposedOutputs(item.repurposedOutputs || null);
+    setMetaInfo(item.meta || null);
+    setError(null);
+  };
+
+  const handleNewSession = () => {
+    setActiveHistoryId(null);
+    setSourceText('');
+    setRepurposedOutputs(null);
+    setMetaInfo(null);
+    setError(null);
+  };
+
+  const handleDeleteHistory = async (e, id) => {
+    e.stopPropagation();
+    try {
+      await deleteHistoryItem(id);
+      setHistory(prev => prev.filter(item => item._id !== id));
+      if (activeHistoryId === id) {
+        handleNewSession();
+      }
+    } catch (err) {
+      console.error('[RepurposeStudio] Failed to delete history item:', err.message);
     }
   };
 
@@ -70,9 +142,110 @@ export default function RepurposeStudio({ profile, mindsStatus, onProfileUpdate 
         alignItems: 'start'
       }}>
         
-        {/* Left Column: Input & Voice Context */}
+        {/* Left Column: Input, History & Voice Context */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
+          {/* New Session Button */}
+          <button
+            type="button"
+            className="btn-editorial-secondary"
+            onClick={handleNewSession}
+            style={{
+              width: '100%',
+              justify: 'center',
+              padding: '10px 14px',
+              fontSize: '0.86rem',
+              fontWeight: 600,
+              backgroundColor: 'var(--theme-surface)',
+              borderColor: 'var(--theme-border)',
+              color: 'var(--theme-text-main)'
+            }}
+          >
+            <AddIcon style={{ fontSize: 18, color: 'var(--theme-accent)' }} /> + New Repurpose Session
+          </button>
+
+          {/* Past Repurposes (History Panel) */}
+          <div className="editorial-card" style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h3 style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--theme-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                <HistoryIcon style={{ fontSize: 16, color: 'var(--theme-accent)' }} /> Past Repurposes ({history.length})
+              </h3>
+              {activeHistoryId && (
+                <span style={{ fontSize: '0.72rem', color: 'var(--theme-accent)', fontWeight: 600 }}>
+                  Viewing Saved
+                </span>
+              )}
+            </div>
+
+            {history.length === 0 ? (
+              <p style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)', fontStyle: 'italic', margin: 0 }}>
+                No past sessions yet. Generated outputs will automatically be saved here.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '220px', overflowY: 'auto', paddingRight: '2px' }}>
+                {history.map((item) => {
+                  const isSelected = activeHistoryId === item._id;
+                  return (
+                    <div
+                      key={item._id}
+                      onClick={() => handleSelectHistory(item)}
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: '6px',
+                        backgroundColor: isSelected ? 'var(--theme-accent-soft)' : 'var(--theme-surface)',
+                        border: isSelected ? '1px solid var(--theme-accent)' : '1px solid var(--theme-border)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: '0.82rem',
+                          fontWeight: isSelected ? 600 : 500,
+                          color: isSelected ? 'var(--theme-accent)' : 'var(--theme-text-main)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {item.title || 'Untitled Repurpose'}
+                        </div>
+                        <div style={{ fontSize: '0.71rem', color: 'var(--theme-text-dim)', marginTop: '2px' }}>
+                          {formatTimeAgo(item.createdAt)}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteHistory(e, item._id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--theme-text-muted)',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          opacity: 0.7
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                        onMouseLeave={(e) => e.currentTarget.style.opacity = 0.7}
+                        title="Delete session"
+                      >
+                        <DeleteOutlineIcon style={{ fontSize: 16 }} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Source Content Input Card */}
           <div className="editorial-card" style={{ padding: '24px' }}>
             <h2 className="font-serif-title" style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '4px' }}>
               Source Content Input
@@ -93,7 +266,10 @@ export default function RepurposeStudio({ profile, mindsStatus, onProfileUpdate 
                     type="button"
                     className="btn-editorial-secondary"
                     style={{ fontSize: '0.78rem', justifyContent: 'flex-start', padding: '6px 10px' }}
-                    onClick={() => setSourceText(demo.text)}
+                    onClick={() => {
+                      setActiveHistoryId(null);
+                      setSourceText(demo.text);
+                    }}
                   >
                     <DescriptionIcon style={{ fontSize: 15 }} /> {demo.title}
                   </button>

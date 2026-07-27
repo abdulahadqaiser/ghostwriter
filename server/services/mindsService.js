@@ -173,6 +173,19 @@ DO NOT write an article about being a creator or about repurposing content. You 
 === VOICE EXAMPLES ===
 ${samplesBlock}
 
+=== MANDATORY STYLISTIC RULES ===
+You will fail this task if you do not include the following in your output:
+1. You MUST use at least one ellipsis ("...") to simulate a natural pause in your thoughts.
+2. You MUST capitalize at least one ENTIRE WORD for vocal emphasis (e.g., "NOT", "NEVER", "HUGE").
+
+=== STYLE, PUNCTUATION & GRAMMAR QUIRKS (CRITICAL) ===
+You are an actor. You must deeply mimic the exact grammatical habits in the VOICE EXAMPLES:
+- CONTRACTIONS: If the examples use casual contractions (don't, didn't, I've), YOU MUST USE THEM. Do not use stiff phrasing like "do not" or "did not".
+- PUNCTUATION: If the examples use ellipses (...) or dashes (-) for natural speech pauses, YOU MUST mimic this rhythm. 
+- EMPHASIS: If the examples capitalize ENTIRE WORDS for vocal emphasis, mimic this behavior.
+- SENTENCE LENGTH: Match the choppy or flowing rhythm of the examples.
+Do NOT default to grammatically perfect, robotic "AI" writing. Sound human. Sound exactly like the examples.
+
 === NEGATIVE CONSTRAINTS (KILL LIST) ===
 You are STRICTLY FORBIDDEN from using any of these words. If you use them, you fail:
 ${killListStr}
@@ -184,8 +197,8 @@ ${correctionsBlock}
 
 === FORMATTING RULES ===
 1. x_thread: Extract the 3-5 strongest points. Write as a Twitter thread. Return as an ARRAY OF STRINGS, where each string is a single tweet.
-2. instagram_caption: Hook in the first sentence. End with a call to action. YOU MUST USE explicit escaped newlines (\\n\\n) to separate every paragraph. DO NOT squish sentences together. A period must always be followed by a space before the next word.
-3. youtube_post: Conversational, community-facing tone. End with a poll or question. YOU MUST USE explicit escaped newlines (\\n\\n) to separate every paragraph. DO NOT squish sentences together. A period must always be followed by a space before the next word.
+2. instagram_caption: Hook in the first sentence. End with a call to action. YOU MUST USE explicit escaped newlines (\\n\\n) to separate every paragraph. NEVER use HTML tags like <br> or <p>. DO NOT squish sentences together. A period must always be followed by a space before the next word.
+3. youtube_post: Conversational, community-facing tone. End with a poll or question. YOU MUST USE explicit escaped newlines (\\n\\n) to separate every paragraph. NEVER use HTML tags like <br> or <p>. DO NOT squish sentences together. A period must always be followed by a space before the next word.
 
 === OUTPUT FORMAT ===
 You MUST return ONLY a valid JSON object. No markdown wrappers, no conversational filler, no explanations. Just the raw JSON object matching this exact schema:
@@ -249,18 +262,22 @@ You MUST return ONLY a valid JSON object. No markdown wrappers, no conversationa
       throw new Error('Missing or invalid "youtube_post" in generated JSON');
     }
 
-    // Post-parse cleanup: fix squished sentences where a period is immediately
-    // followed by a capital letter with no space (e.g. "dead.We" → "dead. We").
-    // This is a defensive normalisation against LLM formatting sloppiness.
-    const fixSpacing = (str) =>
-      typeof str === 'string'
-        ? str.replace(/\.([A-Z])/g, '. $1')
-        : str;
+    // Post-parse cleanup: fix squished sentences and strip any HTML tags (e.g. <br>, <p>)
+    // that the LLM may have hallucinated into the output.
+    const cleanFormatting = (str) => {
+      if (typeof str !== 'string') return str;
+      return str
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/?p>/gi, '\n\n')
+        .replace(/\.([A-Z])/g, '. $1')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    };
 
-    parsed.instagram_caption = fixSpacing(parsed.instagram_caption);
-    parsed.youtube_post = fixSpacing(parsed.youtube_post);
+    parsed.instagram_caption = cleanFormatting(parsed.instagram_caption);
+    parsed.youtube_post = cleanFormatting(parsed.youtube_post);
     if (Array.isArray(parsed.x_thread)) {
-      parsed.x_thread = parsed.x_thread.map(fixSpacing);
+      parsed.x_thread = parsed.x_thread.map(cleanFormatting);
     }
 
     return parsed;
@@ -314,7 +331,7 @@ You MUST return ONLY a valid JSON object. No markdown wrappers, no conversationa
       //    GET /v1/messaging/events streams Server-Sent Events.
       //    Each event has: event: message, data: JSON string.
       //    We resolve as soon as we see a Mind reply (senderType 0) for this alias.
-      const SSE_TIMEOUT_MS = 95000; // 25 seconds
+      const SSE_TIMEOUT_MS = 105000; // 25 seconds
       const rawOutputTextPromise = new Promise((resolve, reject) => {
         const url = `${this.baseUrl}/messaging/events`;
         console.log(`[MindsService] Opening SSE stream at ${url} ...`);

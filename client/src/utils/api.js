@@ -59,3 +59,25 @@ export async function fetchMindsStatus() {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+export async function fetchRepurposeHistory() {
+  const res = await fetch(`${API_BASE}/history`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function deleteHistoryItem(id) {
+  const res = await fetch(`${API_BASE}/history/${id}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function clearAllHistory() {
+  const res = await fetch(`${API_BASE}/history`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}

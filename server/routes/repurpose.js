@@ -5,6 +5,17 @@ const mindsService = require('../services/mindsService');
 
 const DEFAULT_USER_ID = 'default-creator';
 
+const { createHistoryEntry } = require('./history');
+
+function generateTitle(text) {
+  const clean = text.replace(/["'\n\r]/g, ' ').replace(/\s+/g, ' ').trim();
+  const firstSentence = clean.split(/[.!?]/)[0];
+  if (firstSentence.length >= 8 && firstSentence.length <= 48) {
+    return firstSentence;
+  }
+  return clean.length > 45 ? clean.slice(0, 42) + '...' : clean;
+}
+
 // POST /api/repurpose - Main repurposing endpoint
 router.post('/', async (req, res) => {
   try {
@@ -25,6 +36,17 @@ router.post('/', async (req, res) => {
 
     // Call Minds Service with voice profile + source text
     const result = await mindsService.generateRepurposedContent(profile, sourceContent.trim());
+
+    // Save to history on successful generation
+    if (result && result.success && result.data) {
+      try {
+        const title = generateTitle(sourceContent.trim());
+        const historyRecord = await createHistoryEntry(title, sourceContent.trim(), result.data, result.meta);
+        result.historyItem = historyRecord;
+      } catch (histErr) {
+        console.warn('[Repurpose API] Failed to save history entry:', histErr.message);
+      }
+    }
 
     res.json(result);
   } catch (err) {
