@@ -7,13 +7,13 @@ import InstagramIcon from '@mui/icons-material/Instagram';
 import YouTubeIcon from '@mui/icons-material/YouTube';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
-import AddIcon from '@mui/icons-material/Add';
-import HistoryIcon from '@mui/icons-material/History';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
+import LinkIcon from '@mui/icons-material/Link';
+import PsychologyIcon from '@mui/icons-material/Psychology';
 import PlatformCard from './PlatformCard';
 import MindStatusCard from './MindStatusCard';
-import { repurposeContent, fetchRepurposeHistory, deleteHistoryItem, ingestYouTubeTranscript, ingestArticle } from '../utils/api';
+import { repurposeContent, ingestYouTubeTranscript, ingestArticle } from '../utils/api';
 
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const DEMO_TRANSCRIPTS = [
   {
     title: 'Demo 1: AI & Creator Voice Research',
@@ -25,22 +25,172 @@ const DEMO_TRANSCRIPTS = [
   }
 ];
 
-function formatTimeAgo(dateString) {
-  if (!dateString) return 'Recent';
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now - date;
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
+const PLATFORM_TABS = [
+  { key: 'x_thread',          label: 'X Thread',    shortLabel: 'X',   icon: <TwitterIcon style={{ fontSize: 15 }} /> },
+  { key: 'instagram_caption', label: 'Instagram',   shortLabel: 'IG',  icon: <InstagramIcon style={{ fontSize: 15 }} /> },
+  { key: 'youtube_post',      label: 'YouTube',     shortLabel: 'YT',  icon: <YouTubeIcon style={{ fontSize: 15 }} /> },
+];
 
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays === 1) return 'Yesterday';
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+// ─── PLATFORM TAB BAR ─────────────────────────────────────────────────────────
+function PlatformTabBar({ active, onChange, outputs }) {
+  return (
+    <div style={{
+      display: 'flex',
+      gap: '6px',
+      padding: '0 0 20px 0',
+    }}>
+      {PLATFORM_TABS.map(tab => {
+        const isActive = active === tab.key;
+        const hasContent = outputs && outputs[tab.key];
+        return (
+          <button
+            key={tab.key}
+            onClick={() => onChange(tab.key)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '8px 18px',
+              borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              fontWeight: isActive ? 600 : 500,
+              fontFamily: 'inherit',
+              transition: 'all 0.18s ease',
+              position: 'relative',
+              backgroundColor: isActive
+                ? 'var(--theme-accent)'
+                : 'var(--theme-surface-hover)',
+              color: isActive
+                ? '#fff'
+                : 'var(--theme-text-muted)',
+              boxShadow: isActive
+                ? '0 2px 12px rgba(var(--theme-accent-rgb, 52,72,67), 0.35)'
+                : 'none',
+            }}
+          >
+            <span style={{ opacity: isActive ? 1 : 0.7, lineHeight: 0 }}>{tab.icon}</span>
+            {tab.label}
+            {/* Green dot if content exists */}
+            {hasContent && !isActive && (
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%',
+                backgroundColor: '#10B981',
+                flexShrink: 0,
+              }} />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
+// ─── VOICE CONTEXT COMPACT CARD ───────────────────────────────────────────────
+function VoiceContextCard({ profile }) {
+  return (
+    <div style={{
+      backgroundColor: 'var(--theme-surface-hover)',
+      border: '1px solid var(--theme-border)',
+      borderRadius: '8px',
+      padding: '12px 14px',
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '6px',
+        marginBottom: '10px',
+      }}>
+        <PsychologyIcon style={{ fontSize: 14, color: 'var(--theme-accent)' }} />
+        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--theme-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          Active Voice Context
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <VoiceContextRow
+          label="Tone"
+          value={profile?.extractedTraits?.tone?.join(', ') || 'Direct, Authentic'}
+          color="var(--theme-text-main)"
+        />
+        <VoiceContextRow
+          label="Forbidden"
+          value={`${profile?.killList?.length || 20} buzzwords`}
+          color="var(--theme-accent)"
+        />
+        <VoiceContextRow
+          label="User Rules"
+          value={`${profile?.corrections?.length || 0} learned`}
+          color={profile?.corrections?.length > 0 ? '#10B981' : 'var(--theme-text-muted)'}
+        />
+      </div>
+    </div>
+  );
+}
+
+function VoiceContextRow({ label, value, color }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
+      <span style={{ color: 'var(--theme-text-dim)' }}>{label}</span>
+      <span style={{ color, fontWeight: 600, textAlign: 'right', maxWidth: '60%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+    </div>
+  );
+}
+
+// ─── EMPTY / LOADING STATE ────────────────────────────────────────────────────
+function OutputEmptyState({ loading, activePlatform }) {
+  const tab = PLATFORM_TABS.find(t => t.key === activePlatform);
+  return (
+    <div style={{
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      textAlign: 'center',
+      padding: '60px 40px',
+      gap: '16px',
+    }}>
+      {loading ? (
+        <>
+          <div style={{
+            width: 56, height: 56, borderRadius: 12,
+            backgroundColor: 'var(--theme-accent-soft)',
+            border: '1px solid var(--theme-border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--theme-accent)',
+          }}>
+            <AutorenewIcon className="spin-icon" style={{ fontSize: 28 }} />
+          </div>
+          <h3 className="font-serif-title" style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>
+            Repurposing in Your Voice…
+          </h3>
+          <p style={{ color: 'var(--theme-text-muted)', fontSize: '0.88rem', maxWidth: 360, lineHeight: '1.6', margin: 0 }}>
+            The Minds Engine is reading your content and writing platform-native posts that match your voice profile.
+          </p>
+        </>
+      ) : (
+        <>
+          <div style={{
+            width: 56, height: 56, borderRadius: 12,
+            backgroundColor: 'var(--theme-accent-soft)',
+            border: '1px solid var(--theme-border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--theme-accent)',
+          }}>
+            <AutoFixHighIcon style={{ fontSize: 28 }} />
+          </div>
+          <h3 className="font-serif-title" style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>
+            {tab ? `${tab.label} Preview` : 'Output Workspace'}
+          </h3>
+          <p style={{ color: 'var(--theme-text-muted)', fontSize: '0.88rem', maxWidth: 380, lineHeight: '1.65', margin: 0 }}>
+            Paste or extract content on the left, then click <strong style={{ color: 'var(--theme-text-main)' }}>Repurpose in My Voice</strong> to generate platform-native posts.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function RepurposeStudio({
   profile,
   mindsStatus,
@@ -50,16 +200,19 @@ export default function RepurposeStudio({
   onNewSession,
   activeHistoryId
 }) {
-  const [sourceText, setSourceText] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [sourceText, setSourceText]           = useState('');
+  const [loading, setLoading]                 = useState(false);
   const [repurposedOutputs, setRepurposedOutputs] = useState(null);
-  const [error, setError] = useState(null);
-  const [metaInfo, setMetaInfo] = useState(null);
+  const [error, setError]                     = useState(null);
+  const [metaInfo, setMetaInfo]               = useState(null);
 
-  // Zero-Friction Content Ingestion state (YouTube + Article)
-  const [ingestUrl, setIngestUrl] = useState('');
-  const [extracting, setExtracting] = useState(false);
-  const [ingestNotice, setIngestNotice] = useState(null);
+  // Tabbed workspace state
+  const [activePlatform, setActivePlatform]   = useState('x_thread');
+
+  // URL ingestion state
+  const [ingestUrl, setIngestUrl]             = useState('');
+  const [extracting, setExtracting]           = useState(false);
+  const [ingestNotice, setIngestNotice]       = useState(null);
 
   const isYouTubeUrl = (url) => /youtu\.be|youtube\.com/i.test(url);
 
@@ -72,13 +225,12 @@ export default function RepurposeStudio({
     try {
       setExtracting(true);
       setIngestNotice(null);
-
       if (isYouTubeUrl(trimmedUrl)) {
         const res = await ingestYouTubeTranscript(trimmedUrl);
         if (res.success && res.transcript) {
           if (onNewSession) onNewSession();
           setSourceText(res.transcript);
-          setIngestNotice({ type: 'success', text: `YouTube transcript extracted (${res.itemCount || 0} caption segments).` });
+          setIngestNotice({ type: 'success', text: `YouTube transcript extracted (${res.itemCount || 0} segments).` });
           setIngestUrl('');
         }
       } else {
@@ -88,13 +240,13 @@ export default function RepurposeStudio({
           setSourceText(res.text);
           const wordCount = res.wordCount ? ` (~${res.wordCount.toLocaleString()} words)` : '';
           const titlePart = res.title ? `"${res.title}"` : 'Article';
-          setIngestNotice({ type: 'success', text: `${titlePart} extracted successfully${wordCount}.` });
+          setIngestNotice({ type: 'success', text: `${titlePart} extracted${wordCount}.` });
           setIngestUrl('');
         }
       }
       setExtracting(false);
     } catch (err) {
-      setIngestNotice({ type: 'error', text: err.message || 'Could not extract content. Please paste text manually.' });
+      setIngestNotice({ type: 'error', text: err.message || 'Could not extract. Paste text manually.' });
       setExtracting(false);
     }
   };
@@ -115,344 +267,320 @@ export default function RepurposeStudio({
 
   const handleRepurpose = async () => {
     if (!sourceText.trim()) {
-      setError('Please paste or load a long-form content transcript to repurpose.');
+      setError('Please paste or load a transcript to repurpose.');
       return;
     }
-
     try {
       setLoading(true);
       setError(null);
-      setRepurposedOutputs(null); // clear stale cards immediately
+      setRepurposedOutputs(null);
       const res = await repurposeContent(sourceText);
-      
-      if (!res.success) {
-        throw new Error(res.error || 'Failed to generate repurposed content.');
-      }
-
+      if (!res.success) throw new Error(res.error || 'Failed to generate content.');
       setRepurposedOutputs(res.data);
       setMetaInfo(res.meta);
-
-      if (res.historyItem && onHistoryAdded) {
-        onHistoryAdded(res.historyItem);
-      }
+      if (res.historyItem && onHistoryAdded) onHistoryAdded(res.historyItem);
       setLoading(false);
+      // Auto-select first tab after generation
+      setActivePlatform('x_thread');
     } catch (err) {
-      setRepurposedOutputs(null); // ensure no stale cards remain
+      setRepurposedOutputs(null);
       setMetaInfo(null);
       setError(err.message);
       setLoading(false);
     }
   };
 
+  // ── Derived values ────────────────────────────────────────────────────────
+  const wordCount = sourceText.trim() ? sourceText.trim().split(/\s+/).length : 0;
+  const activeTab = PLATFORM_TABS.find(t => t.key === activePlatform);
+
   return (
-    <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '24px 28px' }}>
-      
-      {/* Mind Connection Status Indicator */}
-      <MindStatusCard mindsStatus={mindsStatus} />
+    // Full-height two-pane flex container
+    <div style={{
+      display: 'flex',
+      height: '100%',
+      overflow: 'hidden',
+      backgroundColor: 'var(--theme-bg)',
+    }}>
 
-      {/* Main Studio Grid */}
+      {/* ═══════════════════════════════════════════════════════
+          PANE 2 — INPUT PANEL (fixed 420px)
+      ═══════════════════════════════════════════════════════ */}
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: '400px 1fr',
-        gap: '24px',
-        alignItems: 'start'
+        width: '420px',
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        borderRight: '1px solid var(--theme-border)',
+        backgroundColor: 'var(--theme-surface)',
+        height: '100%',
+        overflow: 'hidden',
       }}>
-        
-        {/* Left Column: Source Input & Voice Context */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          {/* Source Content Input Card */}
-          <div className="editorial-card" style={{ padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <h2 className="font-serif-title" style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>
-                Source Content Input
-              </h2>
-              {activeHistoryId && (
-                <span style={{ fontSize: '0.72rem', color: 'var(--theme-accent)', fontWeight: 600, backgroundColor: 'var(--theme-accent-soft)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--theme-border)' }}>
-                  Viewing History
-                </span>
-              )}
-            </div>
-            {/* Zero-Friction Content Ingestion: YouTube + Article */}
-            <div style={{ marginBottom: '18px', backgroundColor: 'var(--theme-surface-hover)', border: '1px solid var(--theme-border)', padding: '14px', borderRadius: '6px' }}>
-              <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--theme-text-main)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                Auto-Extract Content from URL
-              </label>
-              <p style={{ fontSize: '0.74rem', color: 'var(--theme-text-dim)', marginBottom: '10px', marginTop: 0 }}>
-                Paste a <span style={{ color: '#FF0000', fontWeight: 600 }}>YouTube</span> link or any <span style={{ color: 'var(--theme-accent)', fontWeight: 600 }}>article / blog</span> URL to extract text automatically.
-              </p>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  placeholder="youtube.com/watch?v=... or medium.com/article..."
-                  value={ingestUrl}
-                  onChange={(e) => setIngestUrl(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleExtractUrl()}
-                  style={{
-                    flex: 1,
-                    backgroundColor: 'var(--theme-surface)',
-                    border: '1px solid var(--theme-border)',
-                    borderRadius: '4px',
-                    padding: '8px 10px',
-                    color: 'var(--theme-text-main)',
-                    fontSize: '0.8rem'
-                  }}
-                />
-                <button
-                  type="button"
-                  className="btn-editorial-primary"
-                  onClick={handleExtractUrl}
-                  disabled={extracting}
-                  style={{ padding: '8px 14px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
-                >
-                  {extracting ? (
-                    <>
-                      <AutorenewIcon className="spin-icon" style={{ fontSize: 15 }} />
-                      Extracting...
-                    </>
-                  ) : (
-                    'Extract'
-                  )}
-                </button>
-              </div>
+        {/* Scrollable body */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '20px 20px 0 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+        }}>
 
-              {ingestNotice && (
-                <div style={{
-                  marginTop: '8px',
-                  fontSize: '0.78rem',
-                  color: ingestNotice.type === 'error' ? 'var(--theme-accent)' : '#10B981',
-                  fontWeight: 500
-                }}>
-                  {ingestNotice.text}
-                </div>
-              )}
-            </div>
+          {/* Mind Status */}
+          <MindStatusCard mindsStatus={mindsStatus} compact />
 
-            {/* Quick Demo Sample Buttons */}
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--theme-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Load Sample Transcripts:
-              </label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                {DEMO_TRANSCRIPTS.map((demo, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    className="btn-editorial-secondary"
-                    style={{ fontSize: '0.78rem', justifyContent: 'flex-start', padding: '6px 10px' }}
-                    onClick={() => {
-                      if (onNewSession) onNewSession();
-                      setSourceText(demo.text);
-                    }}
-                  >
-                    <DescriptionIcon style={{ fontSize: 15 }} /> {demo.title}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Textarea Input */}
-            <div style={{ marginBottom: '16px' }}>
-              <textarea
-                className="editorial-input"
-                rows={11}
-                placeholder="Paste long-form text here..."
-                value={sourceText}
-                onChange={(e) => setSourceText(e.target.value)}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--theme-text-dim)', marginTop: '6px' }}>
-                <span>{sourceText.length} characters</span>
-                <span>MVP Platform Count: 3 Locked</span>
-              </div>
-            </div>
-
-            {/* Repurpose Button */}
-            <button
-              className="btn-editorial-primary"
-              style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '0.95rem' }}
-              onClick={handleRepurpose}
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <AutorenewIcon className="spin-icon" style={{ fontSize: 18 }} />
-                  Mind Engine Repurposing...
-                </>
-              ) : (
-                <>
-                  <AutoFixHighIcon style={{ fontSize: 18 }} />
-                  Repurpose in My Voice
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Active Voice Summary Panel */}
-          <div className="editorial-card" style={{ padding: '20px' }}>
-            <h3 style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--theme-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
-              Active Voice Context (Prompt Safety Net)
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.82rem' }}>
-              <div>
-                <span style={{ color: 'var(--theme-text-dim)' }}>Target Tone: </span>
-                <span style={{ color: 'var(--theme-text-main)', fontWeight: 600 }}>
-                  {profile?.extractedTraits?.tone?.join(', ') || 'Direct, Authentic'}
-                </span>
-              </div>
-              <div>
-                <span style={{ color: 'var(--theme-text-dim)' }}>Negative Constraint: </span>
-                <span style={{ color: 'var(--theme-accent)', fontWeight: 600 }}>
-                  {profile?.killList?.length || 20} forbidden buzzwords active
-                </span>
-              </div>
-              <div>
-                <span style={{ color: 'var(--theme-text-dim)' }}>Learned Corrections: </span>
-                <span style={{ color: 'var(--theme-accent)', fontWeight: 600 }}>
-                  {profile?.corrections?.length || 0} user rules applied
-                </span>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Right Column: Platform Output Cards */}
-        <div style={{ minWidth: 0 }}>
-          {error ? (
-            /* --- ERROR STATE: prominent, no cards --- */
-            <div className="editorial-card" style={{
-              padding: '60px 40px',
-              textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: '520px',
-              border: '1px solid rgba(220, 38, 38, 0.35)',
-              backgroundColor: 'rgba(220, 38, 38, 0.04)'
-            }}>
-              <div style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(220, 38, 38, 0.1)',
-                border: '1px solid rgba(220, 38, 38, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#DC2626',
-                marginBottom: '20px'
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h2 className="font-serif-title" style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>
+              Source Content
+            </h2>
+            {activeHistoryId && (
+              <span style={{
+                fontSize: '0.7rem', color: 'var(--theme-accent)', fontWeight: 600,
+                backgroundColor: 'var(--theme-accent-soft)', padding: '2px 8px',
+                borderRadius: '4px', border: '1px solid var(--theme-border)'
               }}>
-                <ErrorOutlineIcon style={{ fontSize: 28 }} />
-              </div>
-              <h3 className="font-serif-title" style={{ fontSize: '1.2rem', fontWeight: 600, color: '#DC2626', marginBottom: '12px' }}>
-                Generation Failed
-              </h3>
-              <p style={{ color: 'var(--theme-text-muted)', fontSize: '0.9rem', maxWidth: '420px', lineHeight: '1.7', marginBottom: '20px' }}>
-                {error}
-              </p>
+                Viewing History
+              </span>
+            )}
+          </div>
+
+          {/* ── URL Extractor ── */}
+          <div style={{
+            backgroundColor: 'var(--theme-surface-hover)',
+            border: '1px solid var(--theme-border)',
+            borderRadius: '8px',
+            padding: '12px',
+          }}>
+            <label style={{
+              fontSize: '0.72rem', fontWeight: 700,
+              color: 'var(--theme-text-muted)',
+              textTransform: 'uppercase', letterSpacing: '0.06em',
+              display: 'flex', alignItems: 'center', gap: '5px',
+              marginBottom: '8px',
+            }}>
+              <LinkIcon style={{ fontSize: 13 }} /> Auto-Extract from URL
+            </label>
+            <div style={{ display: 'flex', gap: '7px' }}>
+              <input
+                type="text"
+                placeholder="youtube.com/watch?v=... or any article URL"
+                value={ingestUrl}
+                onChange={(e) => setIngestUrl(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleExtractUrl()}
+                style={{
+                  flex: 1, minWidth: 0,
+                  backgroundColor: 'var(--theme-surface)',
+                  border: '1px solid var(--theme-border)',
+                  borderRadius: '6px',
+                  padding: '7px 10px',
+                  color: 'var(--theme-text-main)',
+                  fontSize: '0.8rem',
+                  outline: 'none',
+                }}
+              />
               <button
-                className="btn-editorial-secondary"
-                onClick={() => setError(null)}
-                style={{ fontSize: '0.82rem' }}
+                type="button"
+                className="btn-editorial-primary"
+                onClick={handleExtractUrl}
+                disabled={extracting}
+                style={{ padding: '7px 12px', fontSize: '0.78rem', whiteSpace: 'nowrap', flexShrink: 0 }}
               >
-                Dismiss &amp; Try Again
+                {extracting
+                  ? <AutorenewIcon className="spin-icon" style={{ fontSize: 14 }} />
+                  : 'Extract'
+                }
               </button>
             </div>
-          ) : !repurposedOutputs ? (
-            /* --- EMPTY STATE --- */
-            <div className="editorial-card" style={{
-              padding: '60px 40px',
-              textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: '520px'
-            }}>
-              <div style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '8px',
-                backgroundColor: 'var(--theme-accent-soft)',
-                border: '1px solid var(--theme-border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--theme-accent)',
-                marginBottom: '16px'
+            {ingestNotice && (
+              <p style={{
+                margin: '7px 0 0 0', fontSize: '0.76rem', fontWeight: 500,
+                color: ingestNotice.type === 'error' ? 'var(--theme-accent)' : '#10B981',
               }}>
-                <AutoFixHighIcon style={{ fontSize: 26 }} />
-              </div>
-              <h3 className="font-serif-title" style={{ fontSize: '1.35rem', fontWeight: 600, marginBottom: '8px' }}>
-                Ready to Repurpose Content
-              </h3>
-              <p style={{ color: 'var(--theme-text-muted)', fontSize: '0.9rem', maxWidth: '420px', lineHeight: '1.6' }}>
-                Paste your transcript on the left and click <strong>"Repurpose in My Voice"</strong>. Ghostwriter will generate platform-native posts for X, Instagram, and YouTube matching your voice profile.
+                {ingestNotice.text}
               </p>
+            )}
+          </div>
+
+          {/* ── Sample Transcripts ── */}
+          <div>
+            <label style={{
+              fontSize: '0.72rem', fontWeight: 700, color: 'var(--theme-text-dim)',
+              textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '6px'
+            }}>
+              Load Sample
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              {DEMO_TRANSCRIPTS.map((demo, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className="btn-editorial-secondary"
+                  style={{ fontSize: '0.76rem', justifyContent: 'flex-start', padding: '5px 10px', gap: '6px' }}
+                  onClick={() => {
+                    if (onNewSession) onNewSession();
+                    setSourceText(demo.text);
+                  }}
+                >
+                  <DescriptionIcon style={{ fontSize: 13, flexShrink: 0 }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{demo.title}</span>
+                </button>
+              ))}
             </div>
-          ) : (
-            <div>
-              {metaInfo && (
-                <div style={{
-                  padding: '10px 16px',
-                  borderRadius: '6px',
-                  backgroundColor: 'var(--theme-accent-soft)',
-                  border: '1px solid var(--theme-border)',
-                  color: 'var(--theme-accent)',
-                  fontSize: '0.82rem',
-                  marginBottom: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '12px'
-                }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 500 }}>
-                    <CheckCircleIcon style={{ fontSize: 16 }} /> Generated via Minds Engine ({metaInfo.mode || 'Active'})
-                  </span>
-                  <span style={{ fontWeight: 600 }}>Strict JSON Safety Net Passed</span>
-                </div>
-              )}
+          </div>
 
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))',
-                gap: '20px'
-              }}>
-                {/* 1. X (Thread) */}
-                <PlatformCard
-                  platformKey="x_thread"
-                  title="X Thread"
-                  pillClass="pill-x"
-                  icon={<TwitterIcon style={{ fontSize: 14 }} />}
-                  content={repurposedOutputs.x_thread}
-                  onSaveSuccess={onProfileUpdate}
-                />
+          {/* ── Textarea ── */}
+          <div style={{ flex: 1 }}>
+            <textarea
+              className="editorial-input"
+              rows={13}
+              placeholder="Paste transcript, podcast script, or article text here…"
+              value={sourceText}
+              onChange={(e) => setSourceText(e.target.value)}
+              style={{ resize: 'vertical', minHeight: '180px' }}
+            />
+            <div style={{
+              display: 'flex', justifyContent: 'space-between',
+              fontSize: '0.72rem', color: 'var(--theme-text-dim)', marginTop: '5px'
+            }}>
+              <span>{sourceText.length} chars</span>
+              <span>{wordCount.toLocaleString()} words</span>
+            </div>
+          </div>
 
-                {/* 2. Instagram Caption */}
-                <PlatformCard
-                  platformKey="instagram_caption"
-                  title="Instagram Caption"
-                  pillClass="pill-ig"
-                  icon={<InstagramIcon style={{ fontSize: 14 }} />}
-                  content={repurposedOutputs.instagram_caption}
-                  onSaveSuccess={onProfileUpdate}
-                />
+          {/* ── Compact Voice Context ── */}
+          <VoiceContextCard profile={profile} />
 
-                {/* 3. YouTube Community Post */}
-                <PlatformCard
-                  platformKey="youtube_post"
-                  title="YouTube Community"
-                  pillClass="pill-yt"
-                  icon={<YouTubeIcon style={{ fontSize: 14 }} />}
-                  content={repurposedOutputs.youtube_post}
-                  onSaveSuccess={onProfileUpdate}
-                />
-              </div>
+          {/* bottom spacer so button shadow doesn't overlap content */}
+          <div style={{ height: '80px', flexShrink: 0 }} />
+        </div>
+
+        {/* ── Sticky Generate Button ── */}
+        <div style={{
+          padding: '12px 20px 16px 20px',
+          borderTop: '1px solid var(--theme-border)',
+          backgroundColor: 'var(--theme-surface)',
+          flexShrink: 0,
+        }}>
+          {error && (
+            <div style={{
+              marginBottom: '10px',
+              padding: '10px 12px',
+              borderRadius: '6px',
+              backgroundColor: 'rgba(220,38,38,0.06)',
+              border: '1px solid rgba(220,38,38,0.3)',
+              fontSize: '0.78rem',
+              color: '#DC2626',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px',
+            }}>
+              <ErrorOutlineIcon style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }} />
+              <span style={{ lineHeight: '1.5' }}>{error}</span>
+            </div>
+          )}
+          <button
+            className="btn-editorial-primary"
+            style={{
+              width: '100%',
+              justifyContent: 'center',
+              padding: '13px',
+              fontSize: '0.92rem',
+              fontWeight: 600,
+              borderRadius: '8px',
+              gap: '8px',
+              boxShadow: '0 2px 12px rgba(var(--theme-accent-rgb, 52,72,67), 0.3)',
+            }}
+            onClick={handleRepurpose}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <AutorenewIcon className="spin-icon" style={{ fontSize: 18 }} />
+                Repurposing…
+              </>
+            ) : (
+              <>
+                <AutoFixHighIcon style={{ fontSize: 18 }} />
+                Repurpose in My Voice
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════
+          PANE 3 — OUTPUT WORKSPACE (flex-1)
+      ═══════════════════════════════════════════════════════ */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: 'var(--theme-bg)',
+        height: '100%',
+        overflow: 'hidden',
+        minWidth: 0,
+      }}>
+        {/* Workspace Top Bar */}
+        <div style={{
+          padding: '16px 28px 0 28px',
+          borderBottom: '1px solid var(--theme-border)',
+          backgroundColor: 'var(--theme-surface)',
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'space-between',
+          gap: '12px',
+        }}>
+          <div style={{ paddingBottom: 0 }}>
+            {/* Tab bar — only show when output exists or loading */}
+            <PlatformTabBar
+              active={activePlatform}
+              onChange={setActivePlatform}
+              outputs={repurposedOutputs}
+            />
+          </div>
+
+          {/* Meta pill */}
+          {metaInfo && repurposedOutputs && (
+            <div style={{
+              marginBottom: '20px',
+              display: 'flex', alignItems: 'center', gap: '6px',
+              fontSize: '0.76rem', color: 'var(--theme-accent)', fontWeight: 500,
+              backgroundColor: 'var(--theme-accent-soft)',
+              border: '1px solid var(--theme-border)',
+              padding: '4px 10px', borderRadius: '20px',
+              whiteSpace: 'nowrap',
+            }}>
+              <CheckCircleIcon style={{ fontSize: 13 }} />
+              Minds Engine · JSON Validated
             </div>
           )}
         </div>
 
+        {/* Scrollable preview area */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '28px',
+        }}>
+          {loading || !repurposedOutputs ? (
+            <OutputEmptyState loading={loading} activePlatform={activePlatform} />
+          ) : (
+            <div style={{
+              maxWidth: '680px',
+              margin: '0 auto',
+            }}>
+              <PlatformCard
+                platformKey={activePlatform}
+                title={activeTab?.label}
+                icon={activeTab?.icon}
+                content={repurposedOutputs[activePlatform]}
+                onSaveSuccess={onProfileUpdate}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

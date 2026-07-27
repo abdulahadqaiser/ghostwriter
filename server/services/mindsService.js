@@ -20,32 +20,81 @@ class MindsService {
   }
 
   /**
-   * Section 4 / Bazaar Ecosystem Integration:
-   * Checks available skills on Minds Bazaar (GET /v1/bazaar/skills) and equips relevant writing/style skills.
+   * TASK 5 — Bazaar Skill Check (Real API Verification)
+   *
+   * Hits GET /v1/bazaar/skills with the live API key and logs the FULL raw
+   * response to the console so we can see exactly what Animoca returns.
+   *
+   * Falls back gracefully if the endpoint is unavailable or returns an error.
    */
   async checkAndEquipRelevantSkills(mindId = this.mindId) {
     if (this.useMock) {
+      console.log('[Bazaar] Running in mock mode — skipping live API call.');
       return [
-        { skillId: 'bazaar-writing-style-v1', name: 'Author Voice & Tone Preserver', status: 'equipped' },
-        { skillId: 'bazaar-platform-adapter-v2', name: 'Social Platform Content Adapter', status: 'equipped' }
+        { skillId: 'bazaar-writing-style-v1',   name: 'Author Voice & Tone Preserver',    status: 'mock' },
+        { skillId: 'bazaar-platform-adapter-v2', name: 'Social Platform Content Adapter',  status: 'mock' }
       ];
     }
 
+    console.log('');
+    console.log('══════════════════════════════════════════════════════════');
+    console.log('[Bazaar] Hitting LIVE Animoca Bazaar API...');
+    console.log(`[Bazaar]   Endpoint : GET ${this.baseUrl}/bazaar/skills`);
+    console.log(`[Bazaar]   Mind ID  : ${mindId}`);
+    console.log('══════════════════════════════════════════════════════════');
+
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+
       const bazaarRes = await fetch(`${this.baseUrl}/bazaar/skills`, {
         method: 'GET',
-        headers: this.getHeaders()
+        headers: this.getHeaders(),
+        signal: controller.signal
       });
+      clearTimeout(timeout);
+
+      console.log(`[Bazaar] HTTP Status : ${bazaarRes.status} ${bazaarRes.statusText}`);
+      console.log('[Bazaar] Response Headers:');
+      for (const [k, v] of bazaarRes.headers.entries()) {
+        console.log(`[Bazaar]   ${k}: ${v}`);
+      }
+
+      // Read body as text first so we can log it raw regardless of parse success
+      const rawBody = await bazaarRes.text();
+      console.log('');
+      console.log('[Bazaar] ── RAW RESPONSE BODY ─────────────────────────────');
+      console.log(rawBody);
+      console.log('[Bazaar] ── END RAW BODY ─────────────────────────────────');
+      console.log('');
 
       if (!bazaarRes.ok) {
-        console.warn(`[MindsService] Bazaar fetch returned ${bazaarRes.status}, using default configuration.`);
+        console.warn(`[Bazaar] Non-OK status (${bazaarRes.status}). Falling back to empty skill list.`);
         return [];
       }
 
-      const bazaarData = await bazaarRes.json();
-      const items = bazaarData.items || [];
+      let bazaarData;
+      try {
+        bazaarData = JSON.parse(rawBody);
+      } catch (_) {
+        console.warn('[Bazaar] Response body is not valid JSON. Falling back to empty skill list.');
+        return [];
+      }
 
-      // Filter relevant writing/style skills
+      console.log('[Bazaar] Parsed response:');
+      console.log(JSON.stringify(bazaarData, null, 2));
+
+      const items = bazaarData.items || bazaarData.skills || bazaarData.data || [];
+      console.log(`[Bazaar] Total skills available on platform: ${items.length}`);
+
+      if (items.length > 0) {
+        console.log('[Bazaar] First 5 skills:');
+        items.slice(0, 5).forEach((s, i) => {
+          console.log(`[Bazaar]   [${i + 1}] id=${s.skillId || s.id || 'N/A'} | name="${s.name || 'N/A'}" | ${s.description?.slice(0, 60) || ''}`);
+        });
+      }
+
+      // Filter for relevant writing/tone/content skills
       const relevantSkills = items.filter(s =>
         s.name?.toLowerCase().includes('writing') ||
         s.name?.toLowerCase().includes('style') ||
@@ -54,9 +103,22 @@ class MindsService {
         s.description?.toLowerCase().includes('content')
       ).slice(0, 3);
 
-      return relevantSkills.map(s => ({ skillId: s.skillId, name: s.name, status: 'available' }));
+      console.log(`[Bazaar] Relevant skills matched: ${relevantSkills.length}`);
+      console.log('══════════════════════════════════════════════════════════');
+      console.log('');
+
+      return relevantSkills.map(s => ({
+        skillId: s.skillId || s.id,
+        name:    s.name,
+        status:  'available'
+      }));
+
     } catch (err) {
-      console.error('[MindsService] Error checking Bazaar skills:', err.message);
+      if (err.name === 'AbortError') {
+        console.warn('[Bazaar] Request timed out after 10s. Bazaar API may be unreachable.');
+      } else {
+        console.error('[Bazaar] Error hitting Bazaar API:', err.message);
+      }
       return [];
     }
   }

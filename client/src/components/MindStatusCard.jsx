@@ -4,25 +4,68 @@ import ElectricBoltIcon from '@mui/icons-material/ElectricBolt';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import ExtensionIcon from '@mui/icons-material/Extension';
 
-export default function MindStatusCard({ mindsStatus }) {
+export default function MindStatusCard({ mindsStatus, compact }) {
   const mind = mindsStatus?.mind;
   const credits = mindsStatus?.credits;
 
+  // ── Compact mode: one-liner badge shown inside the input panel ──
+  if (compact) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: 'var(--theme-surface-hover)',
+        border: '1px solid var(--theme-border)',
+        borderRadius: '8px',
+        padding: '8px 12px',
+        gap: '8px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+          <PsychologyIcon style={{ fontSize: 14, color: 'var(--theme-accent)', flexShrink: 0 }} />
+          <span style={{
+            fontSize: '0.78rem', fontWeight: 600,
+            color: 'var(--theme-text-main)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {mind?.name || 'Ghostwriter Mind'}
+          </span>
+          <span style={{
+            fontSize: '0.68rem', fontWeight: 700,
+            color: '#10B981',
+            backgroundColor: 'rgba(16,185,129,0.1)',
+            border: '1px solid rgba(16,185,129,0.25)',
+            padding: '1px 7px', borderRadius: '20px',
+            whiteSpace: 'nowrap', flexShrink: 0,
+          }}>
+            Online
+          </span>
+        </div>
+        <span style={{
+          fontSize: '0.78rem', fontWeight: 700,
+          color: 'var(--theme-accent)',
+          display: 'inline-flex', alignItems: 'center', gap: '3px',
+          whiteSpace: 'nowrap', flexShrink: 0,
+        }}>
+          <ElectricBoltIcon style={{ fontSize: 13 }} />
+          {(credits?.balance ?? 4850).toLocaleString()}
+        </span>
+      </div>
+    );
+  }
+
+  // ── Full mode: original wide status bar ──
   return (
     <div className="editorial-card" style={{ padding: '16px 24px', marginBottom: '24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-        
+
         {/* Mind Identity */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '6px',
+            width: '36px', height: '36px', borderRadius: '6px',
             backgroundColor: 'var(--theme-accent-soft)',
             border: '1px solid var(--theme-border)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: 'var(--theme-accent)'
           }}>
             <PsychologyIcon style={{ fontSize: 20 }} />
@@ -57,37 +100,23 @@ export default function MindStatusCard({ mindsStatus }) {
               Bazaar Ecosystem Skills
             </span>
             <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-              <span style={{
-                fontSize: '0.75rem',
-                backgroundColor: 'var(--theme-surface-hover)',
-                color: 'var(--theme-text-main)',
-                border: '1px solid var(--theme-border)',
-                padding: '2px 8px',
-                borderRadius: '4px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                fontWeight: 500
-              }}>
-                <VerifiedUserIcon style={{ fontSize: 13, color: 'var(--theme-accent)' }} /> Tone Preserver
-              </span>
-              <span style={{
-                fontSize: '0.75rem',
-                backgroundColor: 'var(--theme-surface-hover)',
-                color: 'var(--theme-text-main)',
-                border: '1px solid var(--theme-border)',
-                padding: '2px 8px',
-                borderRadius: '4px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                fontWeight: 500
-              }}>
-                <ExtensionIcon style={{ fontSize: 13, color: 'var(--theme-accent)' }} /> Platform Adapter
-              </span>
+              {[
+                { icon: <VerifiedUserIcon style={{ fontSize: 13, color: 'var(--theme-accent)' }} />, label: 'Tone Preserver' },
+                { icon: <ExtensionIcon style={{ fontSize: 13, color: 'var(--theme-accent)' }} />, label: 'Platform Adapter' },
+              ].map(({ icon, label }) => (
+                <span key={label} style={{
+                  fontSize: '0.75rem',
+                  backgroundColor: 'var(--theme-surface-hover)',
+                  color: 'var(--theme-text-main)',
+                  border: '1px solid var(--theme-border)',
+                  padding: '2px 8px', borderRadius: '4px',
+                  display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 500
+                }}>
+                  {icon} {label}
+                </span>
+              ))}
             </div>
           </div>
-
         </div>
 
       </div>

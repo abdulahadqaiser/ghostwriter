@@ -21,8 +21,29 @@ router.post('/', async (req, res) => {
   try {
     const { sourceContent } = req.body;
 
-    if (!sourceContent || typeof sourceContent !== 'string' || !sourceContent.trim()) {
-      return res.status(400).json({ success: false, error: 'Source content text is required.' });
+    // ── TASK 4: Input Validation ───────────────────────────────────────────
+    if (!sourceContent || typeof sourceContent !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'sourceContent is required and must be a string.'
+      });
+    }
+
+    const trimmed = sourceContent.trim();
+
+    if (!trimmed) {
+      return res.status(400).json({
+        success: false,
+        error: 'sourceContent cannot be empty. Please paste your transcript or article text.'
+      });
+    }
+
+    const MAX_CHARS = 10000;
+    if (trimmed.length > MAX_CHARS) {
+      return res.status(400).json({
+        success: false,
+        error: `sourceContent exceeds the ${MAX_CHARS.toLocaleString()}-character limit (received ${trimmed.length.toLocaleString()} chars). The content has been chunked automatically — please use the frontend Extract button which handles large content.`
+      });
     }
 
     // Retrieve creator voice profile from MongoDB (Section 3: App owns memory safety net)
@@ -35,13 +56,13 @@ router.post('/', async (req, res) => {
     console.log(`[Repurpose API] Processing repurposing request for user: ${DEFAULT_USER_ID}`);
 
     // Call Minds Service with voice profile + source text
-    const result = await mindsService.generateRepurposedContent(profile, sourceContent.trim());
+    const result = await mindsService.generateRepurposedContent(profile, trimmed);
 
     // Save to history on successful generation
     if (result && result.success && result.data) {
       try {
-        const title = generateTitle(sourceContent.trim());
-        const historyRecord = await createHistoryEntry(title, sourceContent.trim(), result.data, result.meta);
+        const title = generateTitle(trimmed);
+        const historyRecord = await createHistoryEntry(title, trimmed, result.data, result.meta);
         result.historyItem = historyRecord;
       } catch (histErr) {
         console.warn('[Repurpose API] Failed to save history entry:', histErr.message);

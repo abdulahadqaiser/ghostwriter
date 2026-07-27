@@ -106,7 +106,7 @@ export default function App() {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--theme-bg)' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', backgroundColor: 'var(--theme-bg)' }}>
       {/* ChatGPT-style Collapsible Left Sidebar */}
       <Sidebar
         isOpen={isSidebarOpen}
@@ -122,7 +122,7 @@ export default function App() {
       />
 
       {/* Main Content Workspace Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
         <Header
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={() => setIsSidebarOpen(prev => !prev)}
@@ -131,7 +131,8 @@ export default function App() {
           onOpenOnboarding={() => setIsOnboardingOpen(true)}
         />
 
-        <main style={{ flex: 1 }}>
+        {/* Workspace fills remaining height exactly */}
+        <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <Routes>
             <Route
               path="/"
@@ -157,21 +158,12 @@ export default function App() {
                   loadData={loadData}
                   handleHistoryAdded={handleHistoryAdded}
                   handleNewSession={handleNewSession}
+                  activeHistoryId={activeHistoryId}
                 />
               }
             />
           </Routes>
         </main>
-
-        <footer style={{
-          borderTop: '1px solid var(--theme-border)',
-          padding: '20px 32px',
-          textAlign: 'center',
-          color: 'var(--theme-text-dim)',
-          fontSize: '0.8rem'
-        }}>
-          Ghostwriter — Persistent AI Mind Content Repurposer | Minds by Animoca Brands Hackathon Submission
-        </footer>
       </div>
 
       {/* Modals */}
