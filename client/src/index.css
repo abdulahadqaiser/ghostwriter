@@ -1,0 +1,223 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Newsreader", Georgia, serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  
+  --color-bg: var(--theme-bg);
+  --color-surface: var(--theme-surface);
+  --color-surface-hover: var(--theme-surface-hover);
+  --color-border: var(--theme-border);
+  --color-border-subtle: var(--theme-border-subtle);
+  
+  --color-text-main: var(--theme-text-main);
+  --color-text-muted: var(--theme-text-muted);
+  --color-text-dim: var(--theme-text-dim);
+  
+  --color-accent: var(--theme-accent);
+  --color-accent-hover: var(--theme-accent-hover);
+  --color-accent-soft: var(--theme-accent-soft);
+
+  --color-platform-x: var(--theme-x);
+  --color-platform-ig: var(--theme-ig);
+  --color-platform-yt: var(--theme-yt);
+}
+
+/* -------------------------------------------------------------
+ * Theme Variable Definitions (data-theme attribute mapping)
+ * ------------------------------------------------------------- */
+
+/* 1. Light Mode: Warm Editorial Cream (Default) */
+:root, [data-theme="light"] {
+  --theme-bg: #FBF9F5;
+  --theme-surface: #FFFFFF;
+  --theme-surface-hover: #F6F3EC;
+  --theme-border: #E5E1D8;
+  --theme-border-subtle: #EFECE6;
+  
+  --theme-text-main: #1C1B1A;
+  --theme-text-muted: #5E5B56;
+  --theme-text-dim: #8C8880;
+  
+  --theme-accent: #364843;
+  --theme-accent-hover: #263430;
+  --theme-accent-soft: rgba(54, 72, 67, 0.08);
+
+  --theme-x: #2C3E50;
+  --theme-ig: #8A4F6E;
+  --theme-yt: #8B3A3A;
+}
+
+/* 2. Dark Mode: Deep Matte Charcoal */
+[data-theme="dark"] {
+  --theme-bg: #121315;
+  --theme-surface: #1B1C1F;
+  --theme-surface-hover: #232529;
+  --theme-border: #2D3035;
+  --theme-border-subtle: #24272C;
+  
+  --theme-text-main: #ECE9E4;
+  --theme-text-muted: #9E9B95;
+  --theme-text-dim: #6B6964;
+  
+  --theme-accent: #5E786E;
+  --theme-accent-hover: #728F83;
+  --theme-accent-soft: rgba(94, 120, 110, 0.14);
+
+  --theme-x: #7A9CB5;
+  --theme-ig: #B87B9C;
+  --theme-yt: #C46B6B;
+}
+
+/* 3. Quiet Nature Mode: Soft Sand & Olive Earth */
+[data-theme="nature"] {
+  --theme-bg: #ECE7DF;
+  --theme-surface: #F5F1EA;
+  --theme-surface-hover: #E4DDD2;
+  --theme-border: #D5CEBE;
+  --theme-border-subtle: #DFD8CA;
+  
+  --theme-text-main: #23211E;
+  --theme-text-muted: #59544B;
+  --theme-text-dim: #878175;
+  
+  --theme-accent: #2E3E37;
+  --theme-accent-hover: #1F2C27;
+  --theme-accent-soft: rgba(46, 62, 55, 0.1);
+
+  --theme-x: #34495E;
+  --theme-ig: #7A4B62;
+  --theme-yt: #7B3232;
+}
+
+/* -------------------------------------------------------------
+ * Editorial Global Typography & Elements
+ * ------------------------------------------------------------- */
+
+body {
+  background-color: var(--theme-bg);
+  color: var(--theme-text-main);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  line-height: 1.6;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6, .font-serif-title {
+  font-family: var(--font-serif);
+  letter-spacing: -0.02em;
+}
+
+/* Editorial Minimalist Card */
+.editorial-card {
+  background-color: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.2s ease, background-color 0.25s ease;
+}
+
+.editorial-card:hover {
+  border-color: var(--theme-accent);
+}
+
+/* Primary Button */
+.btn-editorial-primary {
+  background-color: var(--theme-accent);
+  color: #FFFFFF;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.btn-editorial-primary:hover {
+  background-color: var(--theme-accent-hover);
+  transform: translateY(-1px);
+}
+
+.btn-editorial-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Secondary Button */
+.btn-editorial-secondary {
+  background-color: var(--theme-surface);
+  color: var(--theme-text-main);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  border: 1px solid var(--theme-border);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-editorial-secondary:hover {
+  background-color: var(--theme-surface-hover);
+  border-color: var(--theme-text-muted);
+}
+
+/* Custom Textarea */
+textarea.editorial-input {
+  width: 100%;
+  background-color: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  padding: 14px;
+  color: var(--theme-text-main);
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+textarea.editorial-input:focus {
+  border-color: var(--theme-accent);
+  box-shadow: 0 0 0 2px var(--theme-accent-soft);
+}
+
+/* Badges */
+.editorial-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--theme-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--theme-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-text-muted);
+}

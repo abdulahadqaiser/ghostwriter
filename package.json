@@ -1,0 +1,24 @@
+{
+  "name": "ghostwriter",
+  "version": "1.0.0",
+  "description": "Ghostwriter — Minds-powered content repurposer with creator voice preservation",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "server": "node server/index.js",
+    "client": "npm run dev --prefix client",
+    "dev": "concurrently \"npm run server\" \"npm run client\""
+  },
+  "keywords": [
+    "ghostwriter",
+    "minds",
+    "ai",
+    "content-repurposing",
+    "voice-preservation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^10.0.4"
+  }
+}

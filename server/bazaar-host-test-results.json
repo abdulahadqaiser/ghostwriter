@@ -1,0 +1,60 @@
+[
+  {
+    "url": "https://api.hellominds.ai/v1/bazaar/skills",
+    "error": "fetch failed"
+  },
+  {
+    "url": "https://api.hellominds.ai/bazaar/skills",
+    "error": "fetch failed"
+  },
+  {
+    "url": "https://hellominds.ai/v1/bazaar/skills",
+    "status": 200,
+    "ok": true,
+    "bodyPreview": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <!--\n      Google Tag Manager (env-flagged).\n      When VITE_SGTM_LOADER_URL + VITE_SGTM_AUTH are both set at build time,\n      gtm.js is fetched from our first-party Stape Custom Loader at\n      proxy.feed.hellominds.ai. Otherwise we fall back to the st"
+  },
+  {
+    "url": "https://hellominds.ai/api/v1/bazaar/skills",
+    "status": 200,
+    "ok": true,
+    "bodyPreview": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <!--\n      Google Tag Manager (env-flagged).\n      When VITE_SGTM_LOADER_URL + VITE_SGTM_AUTH are both set at build time,\n      gtm.js is fetched from our first-party Stape Custom Loader at\n      proxy.feed.hellominds.ai. Otherwise we fall back to the st"
+  },
+  {
+    "url": "https://useminds.com/v1/bazaar/skills",
+    "status": 404,
+    "ok": false,
+    "bodyPreview": "<!doctype html>\n<html lang=\"en\">\n\t<head>\n\t\t<meta charset=\"UTF-8\">\n\t\t<title>404: Not Found</title>\n\t\t<style>\n\t\t\t:root {\n\t\t\t\t--gray-10: hsl(258, 7%, 10%);\n\t\t\t\t--gray-20: hsl(258, 7%, 20%);\n\t\t\t\t--gray-30: hsl(258, 7%, 30%);\n\t\t\t\t--gray-40: hsl(258, 7%, 40%);\n\t\t\t\t--gray-50: hsl(258, 7%, 50%);\n\t\t\t\t--gray-"
+  },
+  {
+    "url": "https://api.useminds.com/v1/bazaar/skills",
+    "error": "fetch failed"
+  },
+  {
+    "url": "https://backend.useminds.com/v1/bazaar/skills",
+    "error": "fetch failed"
+  },
+  {
+    "url": "https://app.hellominds.ai/v1/bazaar/skills",
+    "status": 200,
+    "ok": true,
+    "bodyPreview": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <!-- Google Tag Manager. Prefer the first-party sGTM loader when configured. -->\n    <script>\n      (function (w, d, s, l, gtmId, sgtmUrl, sgtmAuth) {\n        w[l] = w[l] || [];\n        w[l].push({ \"gtm.start\": new Date().getTime(), event: \"gtm.js\" });\n "
+  },
+  {
+    "url": "https://app.hellominds.ai/api/v1/bazaar/skills",
+    "status": 200,
+    "ok": true,
+    "bodyPreview": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <!-- Google Tag Manager. Prefer the first-party sGTM loader when configured. -->\n    <script>\n      (function (w, d, s, l, gtmId, sgtmUrl, sgtmAuth) {\n        w[l] = w[l] || [];\n        w[l].push({ \"gtm.start\": new Date().getTime(), event: \"gtm.js\" });\n "
+  },
+  {
+    "url": "https://build.hellominds.ai/api/v1/bazaar/skills",
+    "status": 404,
+    "ok": false,
+    "bodyPreview": "<!DOCTYPE html><html lang=\"en\" class=\"manrope_68283e89-module__iepiKa__variable space_mono_ac1bc49b-module__o-GeeW__variable\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"preload\" as=\"image\" href=\"/images/404.webp\"/><link rel=\"styleshee"
+  },
+  {
+    "url": "https://build.hellominds.ai/api/bazaar/skills",
+    "status": 404,
+    "ok": false,
+    "bodyPreview": "<!DOCTYPE html><html lang=\"en\" class=\"manrope_68283e89-module__iepiKa__variable space_mono_ac1bc49b-module__o-GeeW__variable\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"preload\" as=\"image\" href=\"/images/404.webp\"/><link rel=\"styleshee"
+  }
+]
