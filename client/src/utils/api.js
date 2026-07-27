@@ -81,3 +81,55 @@ export async function clearAllHistory() {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+export async function addProfileCorrection(correctionText) {
+  const res = await fetch(`${API_BASE}/profile/corrections`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ correctionText })
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function deleteProfileCorrection(index) {
+  const res = await fetch(`${API_BASE}/profile/corrections/${index}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function ingestYouTubeTranscript(url) {
+  const res = await fetch(`${API_BASE}/ingest/youtube`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url })
+  });
+  if (!res.ok) {
+    let serverMsg = 'Subtitles are disabled for this video. Please paste text manually.';
+    try {
+      const body = await res.json();
+      if (body.error) serverMsg = body.error;
+    } catch (_) {}
+    throw new Error(serverMsg);
+  }
+  return res.json();
+}
+
+export async function ingestArticle(url) {
+  const res = await fetch(`${API_BASE}/ingest/article`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url })
+  });
+  if (!res.ok) {
+    let serverMsg = 'Could not extract article content. Please paste the text manually.';
+    try {
+      const body = await res.json();
+      if (body.error) serverMsg = body.error;
+    } catch (_) {}
+    throw new Error(serverMsg);
+  }
+  return res.json();
+}

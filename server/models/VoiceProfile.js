@@ -27,7 +27,10 @@ const VoiceProfileSchema = new mongoose.Schema({
       'furthermore', 'subsequently', 'in conclusion', 'to summarize'
     ]
   },
-  corrections: [CorrectionSchema],
+  corrections: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: []
+  },
   mindsConversationId: { type: String, default: null },
   equippedSkills: [{ 
     skillId: String, 

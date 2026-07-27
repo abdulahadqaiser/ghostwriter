@@ -35,12 +35,14 @@ const repurposeRoutes = require('./routes/repurpose');
 const correctionsRoutes = require('./routes/corrections');
 const mindsRoutes = require('./routes/minds');
 const historyRoutes = require('./routes/history');
+const ingestRoutes = require('./routes/ingest');
 
 app.use('/api/profile', profileRoutes);
 app.use('/api/repurpose', repurposeRoutes);
 app.use('/api/corrections', correctionsRoutes);
 app.use('/api/minds', mindsRoutes);
 app.use('/api/history', historyRoutes);
+app.use('/api/ingest', ingestRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

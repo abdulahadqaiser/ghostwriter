@@ -156,12 +156,17 @@ class MindsService {
       ? rawSamples.join('\n\n---\n\n')
       : 'No samples yet. Write in a direct, punchy, human voice.';
 
-    // Format corrections block
-    const correctionsBlock = corrections.length > 0
-      ? corrections.map(c =>
-        `Platform: ${c.platform} | Original: "${c.originalText}" | Fixed To: "${c.correctedText}" | Rule: ${c.learnedRule || 'Match creator edits'}`
-      ).join('\n')
-      : 'No corrections recorded yet.';
+    // Format corrections block (handles string rules & object records)
+    const formattedCorrections = corrections.map((c, i) => {
+      if (typeof c === 'string') return `${i + 1}. ${c}`;
+      if (c.learnedRule) return `${i + 1}. ${c.learnedRule}${c.platform ? ` (${c.platform})` : ''}`;
+      if (c.originalText && c.correctedText) return `${i + 1}. Replace "${c.originalText}" with "${c.correctedText}"`;
+      return `${i + 1}. ${JSON.stringify(c)}`;
+    });
+
+    const correctionsBlock = formattedCorrections.length > 0
+      ? formattedCorrections.join('\n')
+      : 'No custom rules yet.';
 
     // Kill list as flat comma-separated string
     const killListStr = killList.length > 0 ? killList.join(', ') : 'None';
@@ -192,7 +197,8 @@ ${killListStr}
 
 Also forbidden: emojis anywhere in the output, summarizing "in conclusion" paragraphs, corporate marketing language.
 
-=== LEARNED CORRECTIONS ===
+=== LEARNED CORRECTIONS (ULTIMATE OVERRIDE) ===
+You MUST follow these user-defined rules. If these rules contradict the formatting instructions, YOU MUST OBEY THESE CORRECTIONS INSTEAD.
 ${correctionsBlock}
 
 === FORMATTING RULES ===
@@ -201,11 +207,18 @@ ${correctionsBlock}
 3. youtube_post: Conversational, community-facing tone. End with a poll or question. YOU MUST USE explicit escaped newlines (\\n\\n) to separate every paragraph. NEVER use HTML tags like <br> or <p>. DO NOT squish sentences together. A period must always be followed by a space before the next word.
 
 === OUTPUT FORMAT ===
-You MUST return ONLY a valid JSON object. No markdown wrappers, no conversational filler, no explanations. Just the raw JSON object matching this exact schema:
+You MUST return ONLY a valid JSON object. No markdown wrappers, no conversational filler.
+CRITICAL: DO NOT output the literal placeholder strings like "write tweet 1 here". You must actually do the work and generate the real repurposed content based on the transcript.
+
+Use this exact JSON structure:
 {
-  "x_thread": ["tweet 1", "tweet 2", "tweet 3"],
-  "instagram_caption": "your instagram caption here",
-  "youtube_post": "your youtube community post here"
+  "x_thread": [
+    "<write actual tweet 1 here>", 
+    "<write actual tweet 2 here>", 
+    "<write actual tweet 3 here>"
+  ],
+  "instagram_caption": "<write the actual full instagram caption here>",
+  "youtube_post": "<write the actual full youtube community post here>"
 }`;
 
     const userPrompt = `=== SOURCE CONTENT TO REWRITE ===\n${sourceContent}`;
@@ -262,14 +275,14 @@ You MUST return ONLY a valid JSON object. No markdown wrappers, no conversationa
       throw new Error('Missing or invalid "youtube_post" in generated JSON');
     }
 
-    // Post-parse cleanup: fix squished sentences and strip any HTML tags (e.g. <br>, <p>)
+    // Post-parse cleanup: fix squished sentences after any punctuation (.?!), strip any HTML tags (e.g. <br>, <p>)
     // that the LLM may have hallucinated into the output.
     const cleanFormatting = (str) => {
       if (typeof str !== 'string') return str;
       return str
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/?p>/gi, '\n\n')
-        .replace(/\.([A-Z])/g, '. $1')
+        .replace(/([.?!])([A-Z])/g, '$1 $2')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
     };
@@ -281,6 +294,30 @@ You MUST return ONLY a valid JSON object. No markdown wrappers, no conversationa
     }
 
     return parsed;
+  }
+
+  truncateOrChunkText(text, maxWords = 2500) {
+    if (!text || typeof text !== 'string') return '';
+    const words = text.trim().split(/\s+/);
+    if (words.length <= maxWords) {
+      return text;
+    }
+
+    const firstCount = 1000;
+    const middleCount = 500;
+    const lastCount = 1000;
+
+    const firstChunk = words.slice(0, firstCount).join(' ');
+
+    const middleStart = Math.max(firstCount, Math.floor((words.length - middleCount) / 2));
+    const middleChunk = words.slice(middleStart, middleStart + middleCount).join(' ');
+
+    const lastStart = Math.max(middleStart + middleCount, words.length - lastCount);
+    const lastChunk = words.slice(lastStart).join(' ');
+
+    console.log(`[MindsService] Smart chunking applied: Reduced ${words.length} words to ~2,500 words (First 1,000 + Middle 500 + Last 1,000).`);
+
+    return `${firstChunk}\n\n[...PART OF TRANSCRIPT OMITTED FOR BREVITY...]\n\n${middleChunk}\n\n[...PART OF TRANSCRIPT OMITTED FOR BREVITY...]\n\n${lastChunk}`;
   }
 
   /**
@@ -298,185 +335,225 @@ You MUST return ONLY a valid JSON object. No markdown wrappers, no conversationa
    *      an error to the user mid-demo.
    */
   async generateRepurposedContent(voiceProfile, sourceContent) {
+    // Apply smart chunking if source content exceeds 2,500 words
+    const chunkedSourceContent = this.truncateOrChunkText(sourceContent);
+
     // Mock / Safety Net mode
     if (this.useMock) {
       console.log('[MindsService] Operating in Safety Net / Mock Mode.');
-      return this.generateMockRepurposedContent(sourceContent, voiceProfile);
+      return this.generateMockRepurposedContent(chunkedSourceContent, voiceProfile);
     }
 
     // Build two-part prompt — system persona + user source content
-    const { fullPrompt } = this.buildPromptParts(voiceProfile, sourceContent);
+    const { fullPrompt } = this.buildPromptParts(voiceProfile, chunkedSourceContent);
 
-    try {
-      console.log('[MindsService] Sending request to Minds Messaging API...');
+    console.log('[MindsService] Sending request to Minds Messaging API...');
 
-      // 1. Create a fresh conversation alias per request.
-      //    A new alias prevents stale history bleeding into the Mind's context.
-      const alias = `gw-${Date.now()}`.toLowerCase();
-      const convRes = await fetch(`${this.baseUrl}/messaging/conversation`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({ alias, mindId: this.mindId })
-      });
+    // 1. Create a fresh conversation alias per request.
+    const alias = `gw-${Date.now()}`.toLowerCase();
+    const convRes = await fetch(`${this.baseUrl}/messaging/conversation`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ alias, mindId: this.mindId })
+    });
 
-      if (!convRes.ok) {
-        const errText = await convRes.text();
-        throw new Error(`Create conversation returned HTTP ${convRes.status}: ${errText}`);
-      }
-      const convData = await convRes.json();
-      const confirmedAlias = convData.alias || alias;
+    if (!convRes.ok) {
+      const errText = await convRes.text();
+      throw new Error(`Create conversation returned HTTP ${convRes.status}: ${errText}`);
+    }
+    const convData = await convRes.json();
+    const confirmedAlias = convData.alias || alias;
 
-      // 2. Subscribe to SSE stream BEFORE sending the message,
-      //    so we don't miss the Mind's reply event.
-      //    GET /v1/messaging/events streams Server-Sent Events.
-      //    Each event has: event: message, data: JSON string.
-      //    We resolve as soon as we see a Mind reply (senderType 0) for this alias.
-      const SSE_TIMEOUT_MS = 105000; // 25 seconds
-      const rawOutputTextPromise = new Promise((resolve, reject) => {
-        const url = `${this.baseUrl}/messaging/events`;
-        console.log(`[MindsService] Opening SSE stream at ${url} ...`);
-
-        fetch(url, {
-          method: 'GET',
-          headers: {
-            'Accept': 'text/event-stream',
-            'X-Api-Key': this.apiKey
-          }
-        }).then(async (sseRes) => {
-          if (!sseRes.ok || !sseRes.body) {
-            reject(new Error(`SSE stream returned HTTP ${sseRes.status}`));
-            return;
-          }
-
-          const reader = sseRes.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = '';
-
-          const timeout = setTimeout(() => {
-            reader.cancel();
-            reject(new Error('SSE timeout: Mind did not reply within 45 seconds.'));
-          }, SSE_TIMEOUT_MS);
-
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-
-              buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split('\n');
-              buffer = lines.pop(); // keep incomplete last line
-
-              for (const line of lines) {
-                if (!line.startsWith('data:')) continue;
-                const jsonStr = line.replace(/^data:\s*/, '').trim();
-                if (!jsonStr || jsonStr === '[DONE]') continue;
-
-                try {
-                  const event = JSON.parse(jsonStr);
-                  // senderType 0 = Mind reply; filter to our alias
-                  if (
-                    event.senderType === 0 &&
-                    (event.alias === confirmedAlias || event.conversationAlias === confirmedAlias)
-                  ) {
-                    clearTimeout(timeout);
-                    reader.cancel();
-                    console.log('[MindsService] Mind reply received via SSE.');
-                    resolve(event.messageText || event.content || JSON.stringify(event));
-                    return;
-                  }
-                } catch (_) { /* skip non-JSON lines */ }
-              }
-            }
-          } catch (readErr) {
-            clearTimeout(timeout);
-            reject(readErr);
-          }
-        }).catch(reject);
-      });
-
-      // 3. Send the message AFTER starting the SSE listener.
-      const msgRes = await fetch(`${this.baseUrl}/messaging/message`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({
-          alias: confirmedAlias,
-          messageText: fullPrompt
-        })
-      });
-
-      if (!msgRes.ok) {
-        const errText = await msgRes.text();
-        throw new Error(`Send message returned HTTP ${msgRes.status}: ${errText}`);
-      }
-
-      const msgData = await msgRes.json();
-      const sentMessageId = msgData.messageId;
-      console.log(`[MindsService] Message sent. messageId=${sentMessageId}, alias=${confirmedAlias}`);
-
-      // 4. Wait for SSE reply, then fall back to short history poll.
-      //    In production mode (useMock=false), we NEVER silently substitute
-      //    template data — we surface a real error if the Mind doesn't reply.
-      let rawOutputText = null;
+    // Helper to fetch and extract reply from conversation history
+    const fetchHistoryReply = async (targetAlias) => {
       try {
-        rawOutputText = await rawOutputTextPromise;
-      } catch (sseErr) {
-        console.warn(`[MindsService] SSE failed (${sseErr.message}), trying history polling...`);
+        console.log(`[MindsService] Fetching history for alias=${targetAlias}...`);
+        const res = await fetch(`${this.baseUrl}/messaging/histories/${targetAlias}`, {
+          method: 'GET',
+          headers: this.getHeaders()
+        });
 
-        // Short poll: 3 attempts × 2s = 6s additional wait
-        const maxAttempts = 3;
-        const pollIntervalMs = 2000;
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          await new Promise(r => setTimeout(r, pollIntervalMs));
-          console.log(`[MindsService] Polling history attempt ${attempt + 1}/${maxAttempts}...`);
+        if (!res.ok) return null;
+        const items = await res.json();
+        if (!Array.isArray(items) || items.length === 0) return null;
 
-          const historyRes = await fetch(`${this.baseUrl}/messaging/histories/${confirmedAlias}`, {
-            method: 'GET',
-            headers: this.getHeaders()
-          });
+        // Filter messages for senderType === 0 (Mind reply) or possessing output keys
+        const mindReplies = items.filter(m => {
+          const txt = m.messageText || m.text || m.content || '';
+          return m.senderType === 0 || (typeof txt === 'string' && (txt.includes('x_thread') || txt.includes('instagram_caption')));
+        });
 
-          if (!historyRes.ok) continue;
-          const historyItems = await historyRes.json();
-          if (!Array.isArray(historyItems)) continue;
+        if (mindReplies.length > 0) {
+          const last = mindReplies[mindReplies.length - 1];
+          return last.messageText || last.text || last.content || null;
+        }
 
-          const mindReplies = historyItems.filter(m => m.senderType === 0);
-          if (mindReplies.length > 0) {
-            rawOutputText = mindReplies[mindReplies.length - 1].messageText;
-            console.log(`[MindsService] Mind reply found via polling on attempt ${attempt + 1}.`);
-            break;
+        // Fallback: check last item in array
+        const lastItem = items[items.length - 1];
+        if (lastItem && (lastItem.messageText || lastItem.text || lastItem.content)) {
+          return lastItem.messageText || lastItem.text || lastItem.content;
+        }
+      } catch (err) {
+        console.warn(`[MindsService] History fetch error for ${targetAlias}:`, err.message);
+      }
+      return null;
+    };
+
+    // 2. Setup SSE Stream Listener
+    let sseReader = null;
+    let sseTimeoutId = null;
+
+    const ssePromise = new Promise((resolve, reject) => {
+      const url = `${this.baseUrl}/messaging/events`;
+      console.log(`[MindsService] Subscribing to SSE stream at ${url}...`);
+
+      fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/event-stream',
+          'X-Api-Key': this.apiKey
+        }
+      }).then(async (sseRes) => {
+        if (!sseRes.ok || !sseRes.body) {
+          reject(new Error(`SSE stream returned HTTP ${sseRes.status}`));
+          return;
+        }
+
+        sseReader = sseRes.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        try {
+          while (true) {
+            const { done, value } = await sseReader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // keep incomplete tail
+
+            for (const line of lines) {
+              if (!line.startsWith('data:')) continue;
+              const jsonStr = line.replace(/^data:\s*/, '').trim();
+              if (!jsonStr || jsonStr === '[DONE]') continue;
+
+              try {
+                const event = JSON.parse(jsonStr);
+                const msgText = event.messageText || event.content || event.text || (event.data && (event.data.messageText || event.data.text || event.data.content)) || '';
+
+                const isAliasMatch = !event.alias || event.alias === confirmedAlias || event.conversationAlias === confirmedAlias;
+                const hasValidOutputKeys = typeof msgText === 'string' && (msgText.includes('x_thread') || msgText.includes('instagram_caption'));
+
+                if ((event.senderType === 0 || hasValidOutputKeys) && msgText && isAliasMatch) {
+                  console.log('[MindsService] Mind reply received via SSE stream!');
+                  resolve(msgText);
+                  return;
+                }
+              } catch (_) { /* skip non-JSON SSE lines */ }
+            }
           }
+        } catch (readErr) {
+          reject(readErr);
+        }
+      }).catch(reject);
+    });
+
+    // 3. Send message to Minds API
+    const msgRes = await fetch(`${this.baseUrl}/messaging/message`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        alias: confirmedAlias,
+        messageText: fullPrompt
+      })
+    });
+
+    if (!msgRes.ok) {
+      const errText = await msgRes.text();
+      throw new Error(`Send message returned HTTP ${msgRes.status}: ${errText}`);
+    }
+
+    const msgData = await msgRes.json();
+    const sentMessageId = msgData.messageId;
+    console.log(`[MindsService] Message posted to Minds API. alias=${confirmedAlias}, messageId=${sentMessageId}`);
+
+    // 4. Concurrent Active Polling Loop (checks history every 3s alongside SSE)
+    const pollLoopPromise = new Promise(async (resolve) => {
+      const maxPolls = 28; // 28 * 3s = ~84s
+      for (let i = 0; i < maxPolls; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        const found = await fetchHistoryReply(confirmedAlias);
+        if (found) {
+          console.log(`[MindsService] Mind reply recovered via history polling (attempt ${i + 1}).`);
+          resolve(found);
+          return;
         }
       }
+      resolve(null);
+    });
 
-      if (!rawOutputText) {
-        throw new Error('Mind did not reply via SSE or polling within timeout.');
-      }
+    // 90-second Hard Timeout Promise
+    const hardTimeoutPromise = new Promise((_, reject) => {
+      sseTimeoutId = setTimeout(() => {
+        reject(new Error('HARD_TIMEOUT'));
+      }, 90000);
+    });
 
-      // 5. Run the JSON Safety Net.
-      //    In production mode, a malformed reply from the Mind is a 503 —
-      //    the upstream service responded but with unusable output.
-      try {
-        const validatedJson = this.extractAndValidateJson(rawOutputText);
-        return {
-          success: true,
-          data: validatedJson,
-          meta: { alias: confirmedAlias, mode: 'Live Minds API', messageId: sentMessageId }
-        };
-      } catch (jsonErr) {
-        console.error('[MindsService] JSON Safety Net failed. Raw output:', rawOutputText.substring(0, 300));
-        const err = new Error(`Mind returned malformed output that could not be parsed as valid JSON: ${jsonErr.message}`);
-        err.statusCode = 503;
-        throw err;
-      }
+    let rawOutputText = null;
 
-    } catch (apiErr) {
-      // Propagate all errors in production — no silent template substitution.
-      // Attach a statusCode if not already set so the route can send the right HTTP status.
-      console.error('[MindsService] Live API error:', apiErr.message);
-      const isTimeout = apiErr.message.includes('timeout') || apiErr.message.includes('Timeout') || apiErr.message.includes('did not reply');
-      if (!apiErr.statusCode) {
-        apiErr.statusCode = isTimeout ? 504 : 500;
+    try {
+      // Race SSE vs Active Polling vs 90s Hard Timeout
+      rawOutputText = await Promise.race([
+        ssePromise,
+        pollLoopPromise,
+        hardTimeoutPromise
+      ]);
+    } catch (raceErr) {
+      if (raceErr.message === 'HARD_TIMEOUT') {
+        console.warn(`[MindsService] 90s Timeout reached for alias=${confirmedAlias}. Running emergency fallback history fetch...`);
+        rawOutputText = await fetchHistoryReply(confirmedAlias);
+        if (rawOutputText) {
+          console.log('[MindsService] Emergency fallback history fetch successfully recovered generated content!');
+        } else {
+          const timeoutErr = new Error('Generation timed out: The Minds AI took longer than 90 seconds to respond.');
+          timeoutErr.statusCode = 504;
+          throw timeoutErr;
+        }
+      } else {
+        console.warn(`[MindsService] Stream error (${raceErr.message}). Running fallback history fetch...`);
+        rawOutputText = await fetchHistoryReply(confirmedAlias);
       }
-      throw apiErr;
+    } finally {
+      if (sseTimeoutId) clearTimeout(sseTimeoutId);
+      if (sseReader) {
+        try { sseReader.cancel(); } catch (_) {}
+      }
+    }
+
+    if (!rawOutputText) {
+      // Last-ditch attempt
+      rawOutputText = await fetchHistoryReply(confirmedAlias);
+    }
+
+    if (!rawOutputText) {
+      const timeoutErr = new Error('Mind did not reply within the 90-second timeout window.');
+      timeoutErr.statusCode = 504;
+      throw timeoutErr;
+    }
+
+    // 5. Run JSON Safety Net
+    try {
+      const validatedJson = this.extractAndValidateJson(rawOutputText);
+      return {
+        success: true,
+        data: validatedJson,
+        meta: { alias: confirmedAlias, mode: 'Live Minds API', messageId: sentMessageId }
+      };
+    } catch (jsonErr) {
+      console.error('[MindsService] JSON Safety Net failed. Raw output snippet:', rawOutputText.substring(0, 300));
+      const err = new Error(`Mind returned malformed output: ${jsonErr.message}`);
+      err.statusCode = 503;
+      throw err;
     }
   }
 

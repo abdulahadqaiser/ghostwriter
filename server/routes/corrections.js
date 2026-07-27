@@ -7,12 +7,31 @@ const DEFAULT_USER_ID = 'default-creator';
 // POST /api/corrections - Save creator edits and update voice profile context
 router.post('/', async (req, res) => {
   try {
-    const { platform, originalText, correctedText, learnedRule } = req.body;
+    const { platform, originalText, correctedText, learnedRule, correctionText, rule } = req.body;
+
+    const ruleText = correctionText || learnedRule || rule;
+
+    // Handle simple rule string addition (e.g. { correctionText: "Never say the word 'Poll'" })
+    if (ruleText && (!platform || !originalText || !correctedText)) {
+      let profile = await VoiceProfile.findOne({ userId: DEFAULT_USER_ID });
+      if (!profile) {
+        profile = new VoiceProfile({ userId: DEFAULT_USER_ID });
+      }
+      profile.corrections.push(ruleText.trim());
+      await profile.save();
+
+      return res.json({
+        success: true,
+        message: 'Rule added to profile!',
+        corrections: profile.corrections,
+        profile
+      });
+    }
 
     if (!platform || !originalText || !correctedText) {
       return res.status(400).json({ 
         success: false, 
-        error: 'platform, originalText, and correctedText are required fields.' 
+        error: 'platform, originalText, and correctedText (or correctionText) are required fields.' 
       });
     }
 

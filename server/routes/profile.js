@@ -82,4 +82,41 @@ router.put('/kill-list', async (req, res) => {
   }
 });
 
+// POST /api/profile/corrections - Add a new learned correction rule
+router.post('/corrections', async (req, res) => {
+  try {
+    const { correctionText, learnedRule, rule } = req.body;
+    const ruleToAdd = (correctionText || learnedRule || rule || '').trim();
+
+    if (!ruleToAdd) {
+      return res.status(400).json({ success: false, error: 'correctionText is required.' });
+    }
+
+    const profile = await getOrCreateProfile();
+    profile.corrections.push(ruleToAdd);
+    await profile.save();
+
+    res.json({ success: true, corrections: profile.corrections, profile });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/profile/corrections/:index - Delete a learned rule by index
+router.delete('/corrections/:index', async (req, res) => {
+  try {
+    const idx = parseInt(req.params.index, 10);
+    const profile = await getOrCreateProfile();
+
+    if (!isNaN(idx) && idx >= 0 && idx < profile.corrections.length) {
+      profile.corrections.splice(idx, 1);
+      await profile.save();
+    }
+
+    res.json({ success: true, corrections: profile.corrections, profile });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;

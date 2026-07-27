@@ -5,10 +5,12 @@ import AddIcon from '@mui/icons-material/Add';
 import HistoryIcon from '@mui/icons-material/History';
 import TuneIcon from '@mui/icons-material/Tune';
 import LightbulbIcon from '@mui/icons-material/Lightbulb';
-import { updateKillList } from '../utils/api';
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
+import { updateKillList, addProfileCorrection, deleteProfileCorrection } from '../utils/api';
 
 export default function VoiceProfileManager({ isOpen, onClose, profile, onProfileUpdate }) {
   const [newForbiddenWord, setNewForbiddenWord] = useState('');
+  const [newRuleText, setNewRuleText] = useState('');
   const [killList, setKillList] = useState(profile?.killList || []);
   const [duplicateNotice, setDuplicateNotice] = useState('');
   const [updating, setUpdating] = useState(false);
@@ -63,6 +65,36 @@ export default function VoiceProfileManager({ isOpen, onClose, profile, onProfil
       setUpdating(false);
     }
   };
+
+  const handleAddRule = async () => {
+    if (!newRuleText.trim()) return;
+    const ruleText = newRuleText.trim();
+
+    try {
+      setUpdating(true);
+      await addProfileCorrection(ruleText);
+      setNewRuleText('');
+      setUpdating(false);
+      if (onProfileUpdate) await onProfileUpdate();
+    } catch (err) {
+      alert(`Error adding rule: ${err.message}`);
+      setUpdating(false);
+    }
+  };
+
+  const handleRemoveRule = async (index) => {
+    try {
+      setUpdating(true);
+      await deleteProfileCorrection(index);
+      setUpdating(false);
+      if (onProfileUpdate) await onProfileUpdate();
+    } catch (err) {
+      alert(`Error removing rule: ${err.message}`);
+      setUpdating(false);
+    }
+  };
+
+  const corrections = profile?.corrections || [];
 
   return (
     <div style={{
@@ -202,36 +234,98 @@ export default function VoiceProfileManager({ isOpen, onClose, profile, onProfil
           )}
         </div>
 
-        {/* Section 3: Learned Correction History */}
+        {/* Section 3: Learned Correction History & Custom Rules */}
         <div style={{ marginBottom: '20px' }}>
           <h3 className="font-serif-title" style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--theme-text-main)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <HistoryIcon style={{ fontSize: 18, color: 'var(--theme-accent)' }} /> Learned Correction History ({profile?.corrections?.length || 0})
+            <HistoryIcon style={{ fontSize: 18, color: 'var(--theme-accent)' }} /> Learned Correction Rules ({corrections.length})
           </h3>
-          {(!profile?.corrections || profile.corrections.length === 0) ? (
-            <p style={{ fontSize: '0.85rem', color: 'var(--theme-text-muted)' }}>
-              No corrections recorded yet. When you edit any output in the Studio, click "Save Edits & Train Voice" to teach the Mind your precise preferences.
+          <p style={{ fontSize: '0.82rem', color: 'var(--theme-text-muted)', marginBottom: '12px' }}>
+            These rules act as ultimate overrides in the Mind's prompt. Add custom rules or train the Mind via Studio edits:
+          </p>
+
+          {/* Add Rule Input Row */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <input
+              type="text"
+              placeholder="Add custom rule (e.g., Never say the word 'Poll')..."
+              value={newRuleText}
+              onChange={(e) => setNewRuleText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddRule()}
+              style={{
+                flex: 1,
+                backgroundColor: 'var(--theme-surface)',
+                border: '1px solid var(--theme-border)',
+                borderRadius: '4px',
+                padding: '8px 12px',
+                color: 'var(--theme-text-main)',
+                fontSize: '0.85rem'
+              }}
+            />
+            <button className="btn-editorial-secondary" onClick={handleAddRule} disabled={updating}>
+              <AddIcon style={{ fontSize: 16 }} /> Add Rule
+            </button>
+          </div>
+
+          {/* List of Saved Rules */}
+          {corrections.length === 0 ? (
+            <p style={{ fontSize: '0.85rem', color: 'var(--theme-text-muted)', fontStyle: 'italic' }}>
+              No custom rules yet. Add a rule above or edit any output in the Studio to train the Mind.
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {profile.corrections.map((c, idx) => (
-                <div key={idx} style={{
-                  backgroundColor: 'var(--theme-surface-hover)',
-                  border: '1px solid var(--theme-border)',
-                  borderRadius: '6px',
-                  padding: '12px 16px',
-                  fontSize: '0.85rem'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ fontWeight: 700, color: 'var(--theme-accent)' }}>{c.platform}</span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--theme-text-dim)' }}>
-                      {new Date(c.createdAt).toLocaleDateString()}
-                    </span>
+              {corrections.map((c, idx) => {
+                const isStringRule = typeof c === 'string';
+                const ruleDisplay = isStringRule
+                  ? c
+                  : c.learnedRule || c.rule || (c.originalText ? `Replace "${c.originalText}" with "${c.correctedText}"` : JSON.stringify(c));
+
+                return (
+                  <div key={idx} style={{
+                    backgroundColor: 'var(--theme-surface-hover)',
+                    border: '1px solid var(--theme-border)',
+                    borderRadius: '6px',
+                    padding: '12px 16px',
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      {!isStringRule && c.platform && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                          <span style={{ fontWeight: 700, color: 'var(--theme-accent)', fontSize: '0.78rem' }}>{c.platform}</span>
+                          {c.createdAt && (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--theme-text-dim)' }}>
+                              {new Date(c.createdAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <p style={{ color: 'var(--theme-text-main)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                        <LightbulbIcon style={{ color: 'var(--theme-accent)', fontSize: 16, flexShrink: 0 }} /> Rule #{idx + 1}: {ruleDisplay}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => handleRemoveRule(idx)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--theme-text-muted)',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                      title="Delete rule"
+                    >
+                      <DeleteOutlinedIcon style={{ fontSize: 16 }} />
+                    </button>
                   </div>
-                  <p style={{ color: 'var(--theme-text-main)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <LightbulbIcon style={{ color: 'var(--theme-accent)', fontSize: 16 }} /> Rule: {c.learnedRule}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
