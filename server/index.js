@@ -9,7 +9,7 @@ dotenv.config();
 // ─── TASK 2: SECRETS FAIL-FAST ────────────────────────────────────────────────
 // If critical secrets are missing at boot, refuse to start rather than running
 // in a broken/insecure state.
-const REQUIRED_ENV = ['MINDS_BUILDER_API_KEY', 'MONGODB_URI'];
+const REQUIRED_ENV = ['MINDS_BUILDER_API_KEY', 'MONGODB_URI', 'GEMINI_API_KEY'];
 const missingEnv = REQUIRED_ENV.filter(k => !process.env[k]);
 if (missingEnv.length > 0) {
   console.error('');
@@ -90,12 +90,15 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', name: 'Ghostwriter Backend API', version: '1.0.0' });
 });
 
+const { seedPersonas } = require('./services/personaSeeder');
+
 // ─── MongoDB Connection ───────────────────────────────────────────────────────
 // MONGODB_URI is guaranteed to exist here (fail-fast above).
 mongoose.connect(process.env.MONGODB_URI, {
   serverSelectionTimeoutMS: 5000
-}).then(() => {
+}).then(async () => {
   console.log('✅ Connected to MongoDB successfully.');
+  await seedPersonas();
 }).catch((err) => {
   console.error('❌ MongoDB connection failed:', err.message);
   console.error('   Check MONGODB_URI in your .env file.');

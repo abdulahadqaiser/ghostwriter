@@ -8,7 +8,7 @@ import LightbulbIcon from '@mui/icons-material/Lightbulb';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import { updateKillList, addProfileCorrection, deleteProfileCorrection } from '../utils/api';
 
-export default function VoiceProfileManager({ isOpen, onClose, profile, onProfileUpdate }) {
+export default function VoiceProfileManager({ isOpen, onClose, profile, onProfileUpdate, activeUserId = 'default-creator' }) {
   const [newForbiddenWord, setNewForbiddenWord] = useState('');
   const [newRuleText, setNewRuleText] = useState('');
   const [killList, setKillList] = useState(profile?.killList || []);
@@ -41,7 +41,7 @@ export default function VoiceProfileManager({ isOpen, onClose, profile, onProfil
 
     try {
       setUpdating(true);
-      await updateKillList(updated);
+      await updateKillList(updated, activeUserId);
       setUpdating(false);
       if (onProfileUpdate) await onProfileUpdate();
     } catch (err) {
@@ -57,7 +57,7 @@ export default function VoiceProfileManager({ isOpen, onClose, profile, onProfil
 
     try {
       setUpdating(true);
-      await updateKillList(updated);
+      await updateKillList(updated, activeUserId);
       setUpdating(false);
       if (onProfileUpdate) await onProfileUpdate();
     } catch (err) {
@@ -72,7 +72,7 @@ export default function VoiceProfileManager({ isOpen, onClose, profile, onProfil
 
     try {
       setUpdating(true);
-      await addProfileCorrection(ruleText);
+      await addProfileCorrection(ruleText, activeUserId);
       setNewRuleText('');
       setUpdating(false);
       if (onProfileUpdate) await onProfileUpdate();
@@ -85,7 +85,7 @@ export default function VoiceProfileManager({ isOpen, onClose, profile, onProfil
   const handleRemoveRule = async (index) => {
     try {
       setUpdating(true);
-      await deleteProfileCorrection(index);
+      await deleteProfileCorrection(index, activeUserId);
       setUpdating(false);
       if (onProfileUpdate) await onProfileUpdate();
     } catch (err) {

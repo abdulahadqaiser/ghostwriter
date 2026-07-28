@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const VoiceProfile = require('../models/VoiceProfile');
 const mindsService = require('../services/mindsService');
+const { compressTranscriptWithTone } = require('../services/geminiService');
 
 const DEFAULT_USER_ID = 'default-creator';
 
@@ -21,7 +22,7 @@ router.post('/', async (req, res) => {
   try {
     const { sourceContent } = req.body;
 
-    // ── TASK 4: Input Validation ───────────────────────────────────────────
+    // ── Input Validation ───────────────────────────────────────────────────
     if (!sourceContent || typeof sourceContent !== 'string') {
       return res.status(400).json({
         success: false,
@@ -38,31 +39,57 @@ router.post('/', async (req, res) => {
       });
     }
 
-    const MAX_CHARS = 10000;
+    // Raised to 50k since Gemini now handles compression for long content
+    const MAX_CHARS = 50000;
     if (trimmed.length > MAX_CHARS) {
       return res.status(400).json({
         success: false,
-        error: `sourceContent exceeds the ${MAX_CHARS.toLocaleString()}-character limit (received ${trimmed.length.toLocaleString()} chars). The content has been chunked automatically — please use the frontend Extract button which handles large content.`
+        error: `sourceContent exceeds the ${MAX_CHARS.toLocaleString()}-character limit (received ${trimmed.length.toLocaleString()} chars). Please shorten the content.`
       });
     }
 
-    // Retrieve creator voice profile from MongoDB (Section 3: App owns memory safety net)
-    let profile = await VoiceProfile.findOne({ userId: DEFAULT_USER_ID });
+    // Retrieve creator voice profile from MongoDB based on userId
+    const userId = req.body.userId || req.headers['x-user-id'] || DEFAULT_USER_ID;
+    let profile = await VoiceProfile.findOne({ userId });
     if (!profile) {
-      profile = new VoiceProfile({ userId: DEFAULT_USER_ID });
+      profile = new VoiceProfile({ userId });
       await profile.save();
     }
 
-    console.log(`[Repurpose API] Processing repurposing request for user: ${DEFAULT_USER_ID}`);
+    console.log(`[Repurpose API] Processing request for user: ${userId} (${trimmed.length.toLocaleString()} chars)`);
 
-    // Call Minds Service with voice profile + source text
-    const result = await mindsService.generateRepurposedContent(profile, trimmed);
+    // ── Gemini Context Compression ─────────────────────────────────────────
+    // If the transcript exceeds the Minds API token budget (~9000 chars),
+    // Gemini compresses it while preserving the creator's voice.
+    const compressionResult = await compressTranscriptWithTone(trimmed, profile);
+    const contentForMinds = compressionResult.compressed;
+
+    if (compressionResult.wasCompressed) {
+      console.log(`[Repurpose API] Gemini compressed: ${compressionResult.originalLength} → ${compressionResult.compressedLength} chars`);
+    }
+
+    // Call Minds Service with (possibly compressed) content
+    const result = await mindsService.generateRepurposedContent(profile, contentForMinds);
+
+    // Attach compression meta to the response
+    result.sentToMindsChars = contentForMinds.length;
+    result.sentToMindsContent = contentForMinds;
+    result.meta = result.meta || {};
+    result.meta.compression = {
+      wasCompressed: compressionResult.wasCompressed,
+      originalChars: compressionResult.originalLength,
+      compressedChars: compressionResult.compressedLength,
+      sentToMindsChars: contentForMinds.length,
+      engine: compressionResult.wasCompressed
+        ? (compressionResult.fallback ? 'truncation-fallback' : 'gemini-fallback-chain')
+        : 'raw-pass-through'
+    };
 
     // Save to history on successful generation
     if (result && result.success && result.data) {
       try {
         const title = generateTitle(trimmed);
-        const historyRecord = await createHistoryEntry(title, trimmed, result.data, result.meta);
+        const historyRecord = await createHistoryEntry(title, trimmed, result.data, result.meta, userId);
         result.historyItem = historyRecord;
       } catch (histErr) {
         console.warn('[Repurpose API] Failed to save history entry:', histErr.message);

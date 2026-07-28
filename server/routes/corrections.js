@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const VoiceProfile = require('../models/VoiceProfile');
+const { suggestCorrectionRule } = require('../services/geminiService');
 
 const DEFAULT_USER_ID = 'default-creator';
 
@@ -71,4 +72,83 @@ router.post('/', async (req, res) => {
   }
 });
 
+// ─── GEMINI-POWERED RLHF ROUTES ──────────────────────────────────────────────
+
+/**
+ * POST /api/corrections/suggest
+ *
+ * Accepts { originalText, editedText } and uses Gemini to analyze the diff,
+ * returning a suggested correction rule for the user to accept or reject.
+ */
+router.post('/suggest', async (req, res) => {
+  try {
+    const { originalText, editedText } = req.body;
+
+    if (!originalText || !editedText) {
+      return res.status(400).json({
+        success: false,
+        error: 'Both originalText and editedText are required.'
+      });
+    }
+
+    // Skip suggestion if the edit is trivially small
+    if (originalText.trim() === editedText.trim()) {
+      return res.json({ success: true, suggestedRule: '' });
+    }
+
+    const result = await suggestCorrectionRule(originalText, editedText);
+
+    res.json({
+      success: true,
+      suggestedRule: result.suggestedRule || ''
+    });
+  } catch (err) {
+    console.error('[Corrections API] Suggest rule error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/corrections/accept
+ *
+ * Accepts { rule } and permanently saves it as a string correction rule
+ * to the user's voice profile in MongoDB.
+ */
+router.post('/accept', async (req, res) => {
+  try {
+    const { rule } = req.body;
+
+    if (!rule || typeof rule !== 'string' || !rule.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'A non-empty rule string is required.'
+      });
+    }
+
+    let profile = await VoiceProfile.findOne({ userId: DEFAULT_USER_ID });
+    if (!profile) {
+      profile = new VoiceProfile({ userId: DEFAULT_USER_ID });
+    }
+
+    profile.corrections.push(rule.trim());
+
+    if (profile.corrections.length > 20) {
+      profile.corrections = profile.corrections.slice(-20);
+    }
+
+    await profile.save();
+
+    console.log(`[Corrections API] RLHF rule accepted and saved: "${rule.trim()}"`);
+
+    res.json({
+      success: true,
+      message: 'Rule permanently saved to voice profile.',
+      totalCorrections: profile.corrections.length
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
+

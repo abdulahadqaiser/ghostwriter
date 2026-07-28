@@ -35,7 +35,9 @@ export default function Sidebar({
   onDeleteHistory,
   onOpenProfile,
   onOpenOnboarding,
-  mindsStatus
+  mindsStatus,
+  activeUserId = 'default-creator',
+  onSelectPersona
 }) {
   const credits = mindsStatus?.credits?.balance ?? 1551;
   const navigate = useNavigate();
@@ -75,20 +77,19 @@ export default function Sidebar({
       }}>
         {/* Top Header / Branding + Collapse Toggle */}
         <div style={{ padding: '16px 16px 14px 16px', borderBottom: '1px solid var(--theme-border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '6px',
-                backgroundColor: 'var(--theme-accent)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#FFFFFF'
-              }}>
-                <AutoFixHighIcon style={{ fontSize: 18 }} />
-              </div>
+              <img
+                src="/ghost-writer-logo.png"
+                alt="Ghostwriter"
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15))',
+                  flexShrink: 0
+                }}
+              />
               <div>
                 <h1 className="font-serif-title" style={{
                   fontSize: '1.18rem',
@@ -125,6 +126,45 @@ export default function Sidebar({
             >
               <ViewSidebarOutlinedIcon style={{ fontSize: 18 }} />
             </button>
+          </div>
+
+          {/* Active Voice Persona Dropdown */}
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{
+              fontSize: '0.68rem',
+              fontWeight: 700,
+              color: 'var(--theme-text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              marginBottom: '5px'
+            }}>
+              <AccountCircleIcon style={{ fontSize: 13, color: 'var(--theme-accent)' }} />
+              Active Persona
+            </label>
+            <select
+              value={activeUserId || 'default-creator'}
+              onChange={(e) => onSelectPersona && onSelectPersona(e.target.value)}
+              style={{
+                width: '100%',
+                backgroundColor: 'var(--theme-surface-hover)',
+                border: '1px solid var(--theme-border)',
+                borderRadius: '6px',
+                padding: '6px 9px',
+                color: 'var(--theme-text-main)',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                fontFamily: 'inherit',
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="default-creator">My Voice (Default)</option>
+              <option value="persona-mkbhd">Tech Reviewer (MKBHD)</option>
+              <option value="persona-hormozi">Aggressive Biz (Hormozi)</option>
+            </select>
           </div>
 
           {/* ChatGPT-style + New Repurpose Button */}

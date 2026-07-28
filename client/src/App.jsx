@@ -8,7 +8,7 @@ import VoiceProfileManager from './components/VoiceProfileManager';
 import { fetchVoiceProfile, fetchMindsStatus, fetchRepurposeHistory, deleteHistoryItem } from './utils/api';
 
 // Route Wrapper for /repurpose/:id
-function RepurposeHistoryRoute({ history, profile, mindsStatus, loadData, handleHistoryAdded, handleNewSession }) {
+function RepurposeHistoryRoute({ history, profile, mindsStatus, loadData, handleHistoryAdded, handleNewSession, activeUserId }) {
   const { id } = useParams();
   const item = history.find(h => h._id === id) || null;
 
@@ -21,6 +21,7 @@ function RepurposeHistoryRoute({ history, profile, mindsStatus, loadData, handle
       onHistoryAdded={handleHistoryAdded}
       onNewSession={handleNewSession}
       activeHistoryId={id}
+      activeUserId={activeUserId}
     />
   );
 }
@@ -33,19 +34,22 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(true);
 
+  // Active Persona Switcher State
+  const [activeUserId, setActiveUserId] = useState('default-creator');
+
   // ChatGPT-style History State
   const [history, setHistory] = useState([]);
   const [activeHistoryId, setActiveHistoryId] = useState(null);
   const [selectedHistoryItem, setSelectedHistoryItem] = useState(null);
   const navigate = useNavigate();
 
-  const loadData = async () => {
+  const loadData = async (targetUserId = activeUserId) => {
     try {
       setLoading(true);
       const [profileRes, statusRes, historyRes] = await Promise.all([
-        fetchVoiceProfile().catch(() => ({ profile: null })),
+        fetchVoiceProfile(targetUserId).catch(() => ({ profile: null })),
         fetchMindsStatus().catch(() => ({ mind: null, credits: null })),
-        fetchRepurposeHistory().catch(() => ({ success: false, history: [] }))
+        fetchRepurposeHistory(targetUserId).catch(() => ({ success: false, history: [] }))
       ]);
 
       if (profileRes.profile) {
@@ -71,8 +75,14 @@ export default function App() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    loadData(activeUserId);
+  }, [activeUserId]);
+
+  const handleSelectPersona = (newUserId) => {
+    setActiveUserId(newUserId);
+    handleNewSession();
+    navigate('/');
+  };
 
   const handleSelectHistory = (item) => {
     setActiveHistoryId(item._id);
@@ -86,7 +96,7 @@ export default function App() {
 
   const handleDeleteHistory = async (id) => {
     try {
-      await deleteHistoryItem(id);
+      await deleteHistoryItem(id, activeUserId);
       setHistory(prev => prev.filter(item => item._id !== id));
       if (activeHistoryId === id) {
         handleNewSession();
@@ -119,6 +129,8 @@ export default function App() {
         onOpenProfile={() => setIsProfileOpen(true)}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
         mindsStatus={mindsStatus}
+        activeUserId={activeUserId}
+        onSelectPersona={handleSelectPersona}
       />
 
       {/* Main Content Workspace Area */}
@@ -140,11 +152,12 @@ export default function App() {
                 <RepurposeStudio
                   profile={profile}
                   mindsStatus={mindsStatus}
-                  onProfileUpdate={loadData}
+                  onProfileUpdate={() => loadData(activeUserId)}
                   selectedHistoryItem={null}
                   onHistoryAdded={handleHistoryAdded}
                   onNewSession={handleNewSession}
                   activeHistoryId={null}
+                  activeUserId={activeUserId}
                 />
               }
             />
@@ -155,10 +168,10 @@ export default function App() {
                   history={history}
                   profile={profile}
                   mindsStatus={mindsStatus}
-                  loadData={loadData}
+                  loadData={() => loadData(activeUserId)}
                   handleHistoryAdded={handleHistoryAdded}
                   handleNewSession={handleNewSession}
-                  activeHistoryId={activeHistoryId}
+                  activeUserId={activeUserId}
                 />
               }
             />
@@ -173,11 +186,13 @@ export default function App() {
         onComplete={loadData}
       />
 
+      {/* Voice Profile Manager Drawer */}
       <VoiceProfileManager
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
         profile={profile}
-        onProfileUpdate={loadData}
+        onProfileUpdate={() => loadData(activeUserId)}
+        activeUserId={activeUserId}
       />
     </div>
   );

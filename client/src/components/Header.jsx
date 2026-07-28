@@ -58,18 +58,16 @@ export default function Header({
 
           {!isSidebarOpen && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{
-                width: '30px',
-                height: '30px',
-                borderRadius: '6px',
-                backgroundColor: 'var(--theme-accent)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#FFFFFF'
-              }}>
-                <AutoFixHighIcon style={{ fontSize: 16 }} />
-              </div>
+              <img
+                src="/ghost-writer-logo.png"
+                alt="Ghostwriter"
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15))'
+                }}
+              />
               <h1 className="font-serif-title" style={{
                 fontSize: '1.2rem',
                 fontWeight: 700,

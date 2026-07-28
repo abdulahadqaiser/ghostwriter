@@ -14,9 +14,9 @@ function isMongoConnected() {
 }
 
 // Helper to save a history entry (used by repurpose route or direct endpoint)
-async function createHistoryEntry(title, sourceContent, repurposedOutputs, meta = {}) {
+async function createHistoryEntry(title, sourceContent, repurposedOutputs, meta = {}, userId = DEFAULT_USER_ID) {
   const entry = {
-    userId: DEFAULT_USER_ID,
+    userId: userId || DEFAULT_USER_ID,
     title: title || sourceContent.slice(0, 45).trim() + '...',
     sourceContent,
     repurposedOutputs,
@@ -39,13 +39,14 @@ async function createHistoryEntry(title, sourceContent, repurposedOutputs, meta 
 // GET /api/history - Get all past repurposes for the user
 router.get('/', async (req, res) => {
   try {
+    const userId = req.query.userId || req.headers['x-user-id'] || DEFAULT_USER_ID;
     if (isMongoConnected()) {
-      const items = await RepurposeHistory.find({ userId: DEFAULT_USER_ID })
+      const items = await RepurposeHistory.find({ userId })
         .sort({ createdAt: -1 })
         .limit(50);
       return res.json({ success: true, history: items });
     } else {
-      return res.json({ success: true, history: inMemoryHistory });
+      return res.json({ success: true, history: inMemoryHistory.filter(h => h.userId === userId) });
     }
   } catch (err) {
     console.error('[History API] Error fetching history:', err);

@@ -358,16 +358,16 @@ Use this exact JSON structure:
     return parsed;
   }
 
-  truncateOrChunkText(text, maxWords = 2500) {
+  truncateOrChunkText(text, maxWords = 800) {
     if (!text || typeof text !== 'string') return '';
     const words = text.trim().split(/\s+/);
     if (words.length <= maxWords) {
       return text;
     }
 
-    const firstCount = 1000;
-    const middleCount = 500;
-    const lastCount = 1000;
+    const firstCount = 400;
+    const middleCount = 150;
+    const lastCount = 250;
 
     const firstChunk = words.slice(0, firstCount).join(' ');
 
@@ -377,7 +377,7 @@ Use this exact JSON structure:
     const lastStart = Math.max(middleStart + middleCount, words.length - lastCount);
     const lastChunk = words.slice(lastStart).join(' ');
 
-    console.log(`[MindsService] Smart chunking applied: Reduced ${words.length} words to ~2,500 words (First 1,000 + Middle 500 + Last 1,000).`);
+    console.log(`[MindsService] Smart chunking applied: Reduced ${words.length} words to ~800 words (${firstCount} + ${middleCount} + ${lastCount}).`);
 
     return `${firstChunk}\n\n[...PART OF TRANSCRIPT OMITTED FOR BREVITY...]\n\n${middleChunk}\n\n[...PART OF TRANSCRIPT OMITTED FOR BREVITY...]\n\n${lastChunk}`;
   }
@@ -409,7 +409,7 @@ Use this exact JSON structure:
     // Build two-part prompt — system persona + user source content
     const { fullPrompt } = this.buildPromptParts(voiceProfile, chunkedSourceContent);
 
-    console.log('[MindsService] Sending request to Minds Messaging API...');
+    console.log(`[MindsService] Sending request to Minds Messaging API... (Source text: ${chunkedSourceContent.length.toLocaleString()} chars | Full prompt: ${fullPrompt.length.toLocaleString()} chars)`);
 
     // 1. Create a fresh conversation alias per request.
     const alias = `gw-${Date.now()}`.toLowerCase();

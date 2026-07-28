@@ -9,21 +9,159 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 import LinkIcon from '@mui/icons-material/Link';
 import PsychologyIcon from '@mui/icons-material/Psychology';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
+import ArticleIcon from '@mui/icons-material/Article';
 import PlatformCard from './PlatformCard';
 import MindStatusCard from './MindStatusCard';
-import { repurposeContent, ingestYouTubeTranscript, ingestArticle } from '../utils/api';
+import { repurposeContent, ingestYouTubeTranscript, ingestArticle, acceptCorrectionRule } from '../utils/api';
 
-// ─── CONSTANTS ────────────────────────────────────────────────────────────────
-const DEMO_TRANSCRIPTS = [
-  {
-    title: 'Demo 1: AI & Creator Voice Research',
-    text: `Recent research on large language model authorship reveals a major flaw in current AI tools. When creators try to repurpose their video transcripts using generic AI tools like OpusClip or Klap, the output strips out their authentic phrasing and voice. Even when explicitly prompted to "write in my tone", LLMs cluster back toward their default generic style—using corporate buzzwords like "delve", "tapestry", and "synergy". Creators end up spending hours manually rewriting every post before publishing. The solution is building a persistent voice profile with strict negative constraints that explicitly forbid generic AI vocabulary.`
-  },
-  {
-    title: 'Demo 2: Podcast Script on Creator Moats',
-    text: `Welcome back to the podcast. Today I want to talk about why your personal voice is your only sustainable moat in 2026. Auto-posting tools claim they save time, but Instagram and YouTube actively penalize reach on automated cross-posted content. If you want high engagement, you need platform-native text written in your actual voice. You should be taking your long-form video or audio, extracting the core insights, and crafting punchy X threads, high-retention Instagram captions, and engaging YouTube community questions.`
-  }
-];
+// ─── RLHF PATTERN MODAL (STUDIO-LEVEL OVERLAY POPUP) ────────────────────────
+function RLHFPatternModal({ suggestedRule, onClose, onRuleAccepted }) {
+  const [accepting, setAccepting] = useState(false);
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
+  if (!suggestedRule) return null;
+
+  const handleAccept = async () => {
+    try {
+      setAccepting(true);
+      await acceptCorrectionRule(suggestedRule);
+      setAccepting(false);
+      setSavedSuccess(true);
+      if (onRuleAccepted) onRuleAccepted(suggestedRule);
+      setTimeout(() => {
+        onClose();
+      }, 1500);
+    } catch (err) {
+      alert(`Error saving rule: ${err.message}`);
+      setAccepting(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.65)',
+      backdropFilter: 'blur(5px)',
+      zIndex: 1200,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px',
+      animation: 'fadeIn 0.2s ease',
+    }}>
+      <div style={{
+        width: '100%',
+        maxWidth: '480px',
+        backgroundColor: 'var(--theme-surface)',
+        border: '1px solid var(--theme-accent)',
+        borderRadius: '14px',
+        padding: '24px',
+        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)',
+        position: 'relative',
+        animation: 'fadeInUp 0.3s ease',
+      }}>
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute', top: '16px', right: '16px',
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--theme-text-muted)', padding: '4px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: '50%',
+          }}
+        >
+          <CloseIcon style={{ fontSize: 18 }} />
+        </button>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '10px',
+            backgroundColor: 'var(--theme-accent-soft)',
+            border: '1px solid var(--theme-accent)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <PsychologyIcon style={{ fontSize: 20, color: 'var(--theme-accent)' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--theme-accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Learning Loop
+            </div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--theme-text-main)' }}>
+              Ghostwriter Detected a Pattern
+            </div>
+          </div>
+        </div>
+
+        {/* Body */}
+        {savedSuccess ? (
+          <div style={{
+            padding: '14px 16px', borderRadius: '8px',
+            backgroundColor: 'rgba(94, 120, 110, 0.15)',
+            border: '1px solid var(--theme-accent)',
+            fontSize: '0.88rem', color: 'var(--theme-accent)', fontWeight: 600,
+            display: 'flex', alignItems: 'center', gap: '8px', margin: '16px 0',
+          }}>
+            <CheckIcon style={{ fontSize: 18 }} />
+            Rule saved to your voice profile!
+          </div>
+        ) : (
+          <>
+            <p style={{
+              fontSize: '0.86rem', lineHeight: '1.5',
+              color: 'var(--theme-text-main)', margin: '0 0 14px 0',
+            }}>
+              Ghostwriter noticed your edit. Should we remember this rule for future content repurposing?
+            </p>
+
+            {/* Rule Quote Card */}
+            <div style={{
+              padding: '12px 16px',
+              borderRadius: '8px',
+              backgroundColor: 'var(--theme-surface-hover)',
+              border: '1px solid var(--theme-border)',
+              fontSize: '0.86rem',
+              color: 'var(--theme-text-main)',
+              lineHeight: '1.5',
+              margin: '0 0 20px 0',
+            }}>
+              <strong style={{ color: 'var(--theme-accent)' }}>Suggested Rule:</strong>{' '}
+              <em>"{suggestedRule}"</em>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                className="btn-editorial-primary"
+                style={{ flex: 1, justifyContent: 'center', padding: '10px 16px', fontSize: '0.85rem', gap: '6px' }}
+                onClick={handleAccept}
+                disabled={accepting}
+              >
+                <CheckIcon style={{ fontSize: 16 }} />
+                {accepting ? 'Saving Rule...' : 'Accept & Save Rule'}
+              </button>
+              <button
+                className="btn-editorial-secondary"
+                style={{ padding: '10px 16px', fontSize: '0.85rem', gap: '6px' }}
+                onClick={onClose}
+                disabled={accepting}
+              >
+                <CloseIcon style={{ fontSize: 16 }} />
+                Reject
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 
 const PLATFORM_TABS = [
   { key: 'x_thread',          label: 'X Thread',    shortLabel: 'X',   icon: <TwitterIcon style={{ fontSize: 15 }} /> },
@@ -198,13 +336,17 @@ export default function RepurposeStudio({
   selectedHistoryItem,
   onHistoryAdded,
   onNewSession,
-  activeHistoryId
+  activeHistoryId,
+  activeUserId = 'default-creator'
 }) {
   const [sourceText, setSourceText]           = useState('');
   const [loading, setLoading]                 = useState(false);
   const [repurposedOutputs, setRepurposedOutputs] = useState(null);
   const [error, setError]                     = useState(null);
   const [metaInfo, setMetaInfo]               = useState(null);
+
+  // RLHF Pattern Detection Popup State
+  const [suggestedRulePopup, setSuggestedRulePopup] = useState('');
 
   // Tabbed workspace state
   const [activePlatform, setActivePlatform]   = useState('x_thread');
@@ -216,12 +358,14 @@ export default function RepurposeStudio({
 
   const isYouTubeUrl = (url) => /youtu\.be|youtube\.com/i.test(url);
 
-  const handleExtractUrl = async () => {
-    const trimmedUrl = ingestUrl.trim();
+  const handleExtractUrl = async (targetUrlOverride) => {
+    const rawUrl = typeof targetUrlOverride === 'string' ? targetUrlOverride : ingestUrl;
+    const trimmedUrl = rawUrl.trim();
     if (!trimmedUrl) {
       setIngestNotice({ type: 'error', text: 'Please paste a YouTube URL or article link.' });
       return;
     }
+    setIngestUrl(trimmedUrl);
     try {
       setExtracting(true);
       setIngestNotice(null);
@@ -274,7 +418,7 @@ export default function RepurposeStudio({
       setLoading(true);
       setError(null);
       setRepurposedOutputs(null);
-      const res = await repurposeContent(sourceText);
+      const res = await repurposeContent(sourceText, activeUserId);
       if (!res.success) throw new Error(res.error || 'Failed to generate content.');
       setRepurposedOutputs(res.data);
       setMetaInfo(res.meta);
@@ -350,21 +494,25 @@ export default function RepurposeStudio({
             backgroundColor: 'var(--theme-surface-hover)',
             border: '1px solid var(--theme-border)',
             borderRadius: '8px',
-            padding: '12px',
+            padding: '12px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
           }}>
             <label style={{
-              fontSize: '0.72rem', fontWeight: 700,
+              fontSize: '0.7rem', fontWeight: 700,
               color: 'var(--theme-text-muted)',
               textTransform: 'uppercase', letterSpacing: '0.06em',
               display: 'flex', alignItems: 'center', gap: '5px',
-              marginBottom: '8px',
+              margin: 0,
             }}>
               <LinkIcon style={{ fontSize: 13 }} /> Auto-Extract from URL
             </label>
+
             <div style={{ display: 'flex', gap: '7px' }}>
               <input
                 type="text"
-                placeholder="youtube.com/watch?v=... or any article URL"
+                placeholder="YouTube URL or article link..."
                 value={ingestUrl}
                 onChange={(e) => setIngestUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleExtractUrl()}
@@ -382,7 +530,7 @@ export default function RepurposeStudio({
               <button
                 type="button"
                 className="btn-editorial-primary"
-                onClick={handleExtractUrl}
+                onClick={() => handleExtractUrl()}
                 disabled={extracting}
                 style={{ padding: '7px 12px', fontSize: '0.78rem', whiteSpace: 'nowrap', flexShrink: 0 }}
               >
@@ -392,41 +540,71 @@ export default function RepurposeStudio({
                 }
               </button>
             </div>
-            {ingestNotice && (
-              <p style={{
-                margin: '7px 0 0 0', fontSize: '0.76rem', fontWeight: 500,
-                color: ingestNotice.type === 'error' ? 'var(--theme-accent)' : '#10B981',
-              }}>
-                {ingestNotice.text}
-              </p>
-            )}
-          </div>
 
-          {/* ── Sample Transcripts ── */}
-          <div>
-            <label style={{
-              fontSize: '0.72rem', fontWeight: 700, color: 'var(--theme-text-dim)',
-              textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '6px'
-            }}>
-              Load Sample
-            </label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              {DEMO_TRANSCRIPTS.map((demo, idx) => (
+            {/* One-Click Sample Pills */}
+            <div>
+              <span style={{
+                fontSize: '0.66rem',
+                fontWeight: 700,
+                color: 'var(--theme-text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                display: 'block',
+                marginBottom: '5px'
+              }}>
+                Try a sample:
+              </span>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 <button
-                  key={idx}
                   type="button"
                   className="btn-editorial-secondary"
-                  style={{ fontSize: '0.76rem', justifyContent: 'flex-start', padding: '5px 10px', gap: '6px' }}
-                  onClick={() => {
-                    if (onNewSession) onNewSession();
-                    setSourceText(demo.text);
+                  onClick={() => handleExtractUrl('https://www.youtube.com/watch?v=86Gy035z_KA')}
+                  disabled={extracting}
+                  style={{
+                    fontSize: '0.74rem',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    gap: '6px',
                   }}
                 >
-                  <DescriptionIcon style={{ fontSize: 13, flexShrink: 0 }} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{demo.title}</span>
+                  <YouTubeIcon style={{ fontSize: 14, color: 'var(--theme-accent)' }} />
+                  Vision Pro Review
                 </button>
-              ))}
+                <button
+                  type="button"
+                  className="btn-editorial-secondary"
+                  onClick={() => handleExtractUrl('https://blog.samaltman.com/what-i-wish-someone-had-told-me')}
+                  disabled={extracting}
+                  style={{
+                    fontSize: '0.74rem',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    gap: '6px',
+                  }}
+                >
+                  <ArticleIcon style={{ fontSize: 14, color: 'var(--theme-accent)' }} />
+                  Sam Altman Blog
+                </button>
+              </div>
             </div>
+
+            {ingestNotice && (
+              <div style={{
+                padding: '8px 10px',
+                borderRadius: '6px',
+                backgroundColor: ingestNotice.type === 'error' ? 'var(--theme-accent-soft)' : 'rgba(16, 185, 129, 0.1)',
+                border: `1px solid ${ingestNotice.type === 'error' ? 'var(--theme-accent)' : 'rgba(16, 185, 129, 0.3)'}`,
+                fontSize: '0.76rem',
+                fontWeight: 500,
+                color: ingestNotice.type === 'error' ? 'var(--theme-accent)' : '#10B981',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}>
+                {ingestNotice.type === 'error' ? <ErrorOutlineIcon style={{ fontSize: 14 }} /> : <CheckCircleIcon style={{ fontSize: 14 }} />}
+                <span>{ingestNotice.text}</span>
+              </div>
+            )}
           </div>
 
           {/* ── Textarea ── */}
@@ -543,17 +721,31 @@ export default function RepurposeStudio({
 
           {/* Meta pill */}
           {metaInfo && repurposedOutputs && (
-            <div style={{
-              marginBottom: '20px',
-              display: 'flex', alignItems: 'center', gap: '6px',
-              fontSize: '0.76rem', color: 'var(--theme-accent)', fontWeight: 500,
-              backgroundColor: 'var(--theme-accent-soft)',
-              border: '1px solid var(--theme-border)',
-              padding: '4px 10px', borderRadius: '20px',
-              whiteSpace: 'nowrap',
-            }}>
-              <CheckCircleIcon style={{ fontSize: 13 }} />
-              Minds Engine · JSON Validated
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '20px' }}>
+              {metaInfo.compression?.wasCompressed && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '5px',
+                  fontSize: '0.76rem', color: 'var(--theme-accent)', fontWeight: 600,
+                  backgroundColor: 'rgba(94, 120, 110, 0.12)',
+                  border: '1px solid var(--theme-accent)',
+                  padding: '4px 10px', borderRadius: '20px',
+                  whiteSpace: 'nowrap',
+                }}>
+                  <PsychologyIcon style={{ fontSize: 14 }} />
+                  Compressed ({metaInfo.compression.originalChars.toLocaleString()} → {metaInfo.compression.sentToMindsChars.toLocaleString()} chars sent to Minds)
+                </div>
+              )}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                fontSize: '0.76rem', color: 'var(--theme-accent)', fontWeight: 500,
+                backgroundColor: 'var(--theme-accent-soft)',
+                border: '1px solid var(--theme-border)',
+                padding: '4px 10px', borderRadius: '20px',
+                whiteSpace: 'nowrap',
+              }}>
+                <CheckCircleIcon style={{ fontSize: 13 }} />
+                Minds Engine · JSON Validated
+              </div>
             </div>
           )}
         </div>
@@ -577,11 +769,21 @@ export default function RepurposeStudio({
                 icon={activeTab?.icon}
                 content={repurposedOutputs[activePlatform]}
                 onSaveSuccess={onProfileUpdate}
+                onRuleSuggested={(rule) => setSuggestedRulePopup(rule)}
               />
             </div>
           )}
         </div>
       </div>
+
+      {/* RLHF Pattern Overlay Popup — renders globally regardless of active tab */}
+      <RLHFPatternModal
+        suggestedRule={suggestedRulePopup}
+        onClose={() => setSuggestedRulePopup('')}
+        onRuleAccepted={() => {
+          if (onProfileUpdate) onProfileUpdate();
+        }}
+      />
     </div>
   );
 }
