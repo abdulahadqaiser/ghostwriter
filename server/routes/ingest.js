@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { YoutubeTranscript } = require('youtube-transcript');
+const { getSubtitles } = require('youtube-caption-extractor');
 
 // Extract YouTube video ID from various URL formats
 function extractVideoId(urlStr) {
@@ -32,22 +33,85 @@ router.post('/youtube', async (req, res) => {
 
     console.log(`[Ingest API] Fetching transcript for YouTube videoId: ${videoId}`);
 
-    const items = await YoutubeTranscript.fetchTranscript(videoId);
+    let rawSegments = [];
+    let extractionError = null;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ success: false, error: 'Subtitles are disabled for this video. Please paste text manually.' });
+    // Tier 1: Try youtube-caption-extractor with lang='en'
+    try {
+      const result = await getSubtitles({ videoID: videoId, lang: 'en' });
+      if (result && Array.isArray(result) && result.length > 0) {
+        rawSegments = result.map(s => s.text);
+        console.log(`[Ingest API] Tier 1 (youtube-caption-extractor en) succeeded for ${videoId} (${rawSegments.length} segments)`);
+      }
+    } catch (err1) {
+      console.warn(`[Ingest API] Tier 1 failed for ${videoId}:`, err1.message);
+      extractionError = err1;
     }
 
-    const transcriptText = items
-      .map(item => item.text.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'))
+    // Tier 2: Try youtube-caption-extractor without language constraint
+    if (rawSegments.length === 0) {
+      try {
+        const result = await getSubtitles({ videoID: videoId });
+        if (result && Array.isArray(result) && result.length > 0) {
+          rawSegments = result.map(s => s.text);
+          console.log(`[Ingest API] Tier 2 (youtube-caption-extractor default) succeeded for ${videoId} (${rawSegments.length} segments)`);
+        }
+      } catch (err2) {
+        console.warn(`[Ingest API] Tier 2 failed for ${videoId}:`, err2.message);
+        if (!extractionError) extractionError = err2;
+      }
+    }
+
+    // Tier 3: Try youtube-transcript library
+    if (rawSegments.length === 0) {
+      try {
+        const items = await YoutubeTranscript.fetchTranscript(videoId);
+        if (items && Array.isArray(items) && items.length > 0) {
+          rawSegments = items.map(item => item.text);
+          console.log(`[Ingest API] Tier 3 (youtube-transcript) succeeded for ${videoId} (${rawSegments.length} segments)`);
+        }
+      } catch (err3) {
+        console.warn(`[Ingest API] Tier 3 failed for ${videoId}:`, err3.message);
+        if (!extractionError) extractionError = err3;
+      }
+    }
+
+    if (rawSegments.length === 0) {
+      const detail = extractionError?.message || 'No caption tracks found';
+      console.error(`[Ingest API] All YouTube transcript extraction tiers failed for ${videoId}: ${detail}`);
+      return res.status(400).json({
+        success: false,
+        error: `Could not extract subtitles for this video (${detail}). Please verify captions are available or paste text manually.`
+      });
+    }
+
+    const transcriptText = rawSegments
+      .map(t => typeof t === 'string' ? t : '')
+      .map(t => t.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>'))
       .join(' ')
       .replace(/\s+/g, ' ')
       .trim();
 
-    res.json({ success: true, videoId, transcript: transcriptText, itemCount: items.length, source: 'youtube' });
+    if (!transcriptText || transcriptText.length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: 'Extracted transcript was empty or too short. Subtitles may be disabled for this video.'
+      });
+    }
+
+    res.json({
+      success: true,
+      videoId,
+      transcript: transcriptText,
+      itemCount: rawSegments.length,
+      source: 'youtube'
+    });
   } catch (err) {
-    console.warn('[Ingest API] Error extracting YouTube transcript:', err.message);
-    res.status(400).json({ success: false, error: 'Subtitles are disabled for this video. Please paste text manually.' });
+    console.error('[Ingest API] Unexpected error extracting YouTube transcript:', err.stack || err.message);
+    res.status(400).json({
+      success: false,
+      error: `YouTube transcript extraction failed: ${err.message}. Please paste text manually.`
+    });
   }
 });
 
