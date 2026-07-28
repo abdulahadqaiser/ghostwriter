@@ -1,39 +1,43 @@
-const API_BASE = '/api';
+// Production Deployed Backend URL (Render)
+const API_BASE = 'https://ghostwriter-rtkp.onrender.com/api';
 
-export async function fetchVoiceProfile() {
-  const res = await fetch(`${API_BASE}/profile`);
+// Local development:
+// const API_BASE = 'http://localhost:5000/api';
+// const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+
+export async function fetchVoiceProfile(userId = 'default-creator') {
+  const res = await fetch(`${API_BASE}/profile?userId=${encodeURIComponent(userId)}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-export async function saveOnboardingSamples(samples) {
+export async function saveOnboardingSamples(samples, userId = 'default-creator') {
   const res = await fetch(`${API_BASE}/profile/onboarding`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ samples })
+    body: JSON.stringify({ samples, userId })
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-export async function updateKillList(killList) {
+export async function updateKillList(killList, userId = 'default-creator') {
   const res = await fetch(`${API_BASE}/profile/kill-list`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ killList })
+    body: JSON.stringify({ killList, userId })
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-export async function repurposeContent(sourceContent) {
+export async function repurposeContent(sourceContent, userId = 'default-creator') {
   const res = await fetch(`${API_BASE}/repurpose`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sourceContent })
+    body: JSON.stringify({ sourceContent, userId })
   });
   if (!res.ok) {
-    // Try to parse the server's user-facing error message
     let serverMsg = `HTTP ${res.status}`;
     try {
       const body = await res.json();
@@ -44,11 +48,11 @@ export async function repurposeContent(sourceContent) {
   return res.json();
 }
 
-export async function saveCorrection(platform, originalText, correctedText, learnedRule) {
+export async function saveCorrection(platform, originalText, correctedText, learnedRule, userId = 'default-creator') {
   const res = await fetch(`${API_BASE}/corrections`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ platform, originalText, correctedText, learnedRule })
+    body: JSON.stringify({ platform, originalText, correctedText, learnedRule, userId })
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
@@ -60,14 +64,14 @@ export async function fetchMindsStatus() {
   return res.json();
 }
 
-export async function fetchRepurposeHistory() {
-  const res = await fetch(`${API_BASE}/history`);
+export async function fetchRepurposeHistory(userId = 'default-creator') {
+  const res = await fetch(`${API_BASE}/history?userId=${encodeURIComponent(userId)}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-export async function deleteHistoryItem(id) {
-  const res = await fetch(`${API_BASE}/history/${id}`, {
+export async function deleteHistoryItem(id, userId = 'default-creator') {
+  const res = await fetch(`${API_BASE}/history/${id}?userId=${encodeURIComponent(userId)}`, {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -82,18 +86,18 @@ export async function clearAllHistory() {
   return res.json();
 }
 
-export async function addProfileCorrection(correctionText) {
+export async function addProfileCorrection(correctionText, userId = 'default-creator') {
   const res = await fetch(`${API_BASE}/profile/corrections`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ correctionText })
+    body: JSON.stringify({ correctionText, userId })
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-export async function deleteProfileCorrection(index) {
-  const res = await fetch(`${API_BASE}/profile/corrections/${index}`, {
+export async function deleteProfileCorrection(index, userId = 'default-creator') {
+  const res = await fetch(`${API_BASE}/profile/corrections/${index}?userId=${encodeURIComponent(userId)}`, {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -133,3 +137,26 @@ export async function ingestArticle(url) {
   }
   return res.json();
 }
+
+// ── RLHF Learning Loop (Gemini-Powered) ───────────────────────────────────────
+
+export async function suggestCorrectionRule(originalText, editedText) {
+  const res = await fetch(`${API_BASE}/corrections/suggest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ originalText, editedText })
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function acceptCorrectionRule(rule, userId = 'default-creator') {
+  const res = await fetch(`${API_BASE}/corrections/accept`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rule, userId })
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
