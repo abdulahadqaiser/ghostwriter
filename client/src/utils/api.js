@@ -31,11 +31,11 @@ export async function updateKillList(killList, userId = 'default-creator') {
   return res.json();
 }
 
-export async function repurposeContent(sourceContent, userId = 'default-creator') {
+export async function repurposeContent(sourceContent, userId = 'default-creator', engine = 'minds') {
   const res = await fetch(`${API_BASE}/repurpose`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sourceContent, userId })
+    body: JSON.stringify({ sourceContent, userId, engine })
   });
   if (!res.ok) {
     let serverMsg = `HTTP ${res.status}`;

@@ -337,7 +337,8 @@ export default function RepurposeStudio({
   onHistoryAdded,
   onNewSession,
   activeHistoryId,
-  activeUserId = 'default-creator'
+  activeUserId = 'default-creator',
+  activeEngine = 'minds'
 }) {
   const [sourceText, setSourceText]           = useState('');
   const [loading, setLoading]                 = useState(false);
@@ -418,7 +419,7 @@ export default function RepurposeStudio({
       setLoading(true);
       setError(null);
       setRepurposedOutputs(null);
-      const res = await repurposeContent(sourceText, activeUserId);
+      const res = await repurposeContent(sourceText, activeUserId, activeEngine);
       if (!res.success) throw new Error(res.error || 'Failed to generate content.');
       setRepurposedOutputs(res.data);
       setMetaInfo(res.meta);

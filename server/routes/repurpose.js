@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const VoiceProfile = require('../models/VoiceProfile');
 const mindsService = require('../services/mindsService');
-const { compressTranscriptWithTone } = require('../services/geminiService');
+const { compressTranscriptWithTone, generateRepurposedContent: generateGeminiRepurposedContent } = require('../services/geminiService');
 
 const DEFAULT_USER_ID = 'default-creator';
 
@@ -48,6 +48,10 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // ── AI Engine Selection (Minds API or Google Gemini Engine) ─────────────
+    // Both engines are fully supported in production & development.
+    const activeEngine = req.body.engine === 'gemini' ? 'gemini' : 'minds';
+
     // Retrieve creator voice profile from MongoDB based on userId
     const userId = req.body.userId || req.headers['x-user-id'] || DEFAULT_USER_ID;
     let profile = await VoiceProfile.findOne({ userId });
@@ -56,10 +60,10 @@ router.post('/', async (req, res) => {
       await profile.save();
     }
 
-    console.log(`[Repurpose API] Processing request for user: ${userId} (${trimmed.length.toLocaleString()} chars)`);
+    console.log(`[Repurpose API] Processing request for user: ${userId} (${trimmed.length.toLocaleString()} chars) | Active Engine: ${activeEngine}`);
 
     // ── Gemini Context Compression ─────────────────────────────────────────
-    // If the transcript exceeds the Minds API token budget (~9000 chars),
+    // If the transcript exceeds the token budget (~9000 chars),
     // Gemini compresses it while preserving the creator's voice.
     const compressionResult = await compressTranscriptWithTone(trimmed, profile);
     const contentForMinds = compressionResult.compressed;
@@ -68,8 +72,15 @@ router.post('/', async (req, res) => {
       console.log(`[Repurpose API] Gemini compressed: ${compressionResult.originalLength} → ${compressionResult.compressedLength} chars`);
     }
 
-    // Call Minds Service with (possibly compressed) content
-    const result = await mindsService.generateRepurposedContent(profile, contentForMinds);
+    // Route request to selected engine (Gemini Dev Mode or Production Minds Engine)
+    let result;
+    if (activeEngine === 'gemini') {
+      console.log(`[Repurpose API] Executing generation via Live Gemini API (Dev Fallback)...`);
+      result = await generateGeminiRepurposedContent(profile, contentForMinds);
+    } else {
+      console.log(`[Repurpose API] Executing generation via Production Minds Engine...`);
+      result = await mindsService.generateRepurposedContent(profile, contentForMinds);
+    }
 
     // Attach compression meta to the response
     result.sentToMindsChars = contentForMinds.length;

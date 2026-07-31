@@ -8,7 +8,7 @@ import VoiceProfileManager from './components/VoiceProfileManager';
 import { fetchVoiceProfile, fetchMindsStatus, fetchRepurposeHistory, deleteHistoryItem } from './utils/api';
 
 // Route Wrapper for /repurpose/:id
-function RepurposeHistoryRoute({ history, profile, mindsStatus, loadData, handleHistoryAdded, handleNewSession, activeUserId }) {
+function RepurposeHistoryRoute({ history, profile, mindsStatus, loadData, handleHistoryAdded, handleNewSession, activeUserId, activeEngine }) {
   const { id } = useParams();
   const item = history.find(h => h._id === id) || null;
 
@@ -22,6 +22,7 @@ function RepurposeHistoryRoute({ history, profile, mindsStatus, loadData, handle
       onNewSession={handleNewSession}
       activeHistoryId={id}
       activeUserId={activeUserId}
+      activeEngine={activeEngine}
     />
   );
 }
@@ -36,6 +37,9 @@ export default function App() {
 
   // Active Persona Switcher State
   const [activeUserId, setActiveUserId] = useState('default-creator');
+
+  // Active AI Engine State (minds vs gemini dev fallback)
+  const [activeEngine, setActiveEngine] = useState('minds');
 
   // ChatGPT-style History State
   const [history, setHistory] = useState([]);
@@ -141,6 +145,8 @@ export default function App() {
           mindsStatus={mindsStatus}
           onOpenProfile={() => setIsProfileOpen(true)}
           onOpenOnboarding={() => setIsOnboardingOpen(true)}
+          activeEngine={activeEngine}
+          onSelectEngine={setActiveEngine}
         />
 
         {/* Workspace fills remaining height exactly */}
@@ -158,6 +164,7 @@ export default function App() {
                   onNewSession={handleNewSession}
                   activeHistoryId={null}
                   activeUserId={activeUserId}
+                  activeEngine={activeEngine}
                 />
               }
             />
@@ -172,6 +179,7 @@ export default function App() {
                   handleHistoryAdded={handleHistoryAdded}
                   handleNewSession={handleNewSession}
                   activeUserId={activeUserId}
+                  activeEngine={activeEngine}
                 />
               }
             />

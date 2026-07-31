@@ -195,9 +195,50 @@ Return ONLY the rule string. No quotes, no explanation, no preamble.`;
   }
 }
 
+/**
+ * Feature 3: Dev-Mode AI Engine Generation (Live Gemini API Fallback)
+ *
+ * Generates platform-native repurposed content directly via Gemini API.
+ * Uses the exact same prompt rules, voice profile traits, kill list, and JSON safety net
+ * as mindsService.
+ *
+ * @param {object} voiceProfile Mongoose VoiceProfile document
+ * @param {string} sourceContent Raw source text or compressed content
+ * @returns {object} Response matching Minds API output format:
+ *   { success: true, data: { x_thread, instagram_caption, youtube_post }, meta: { mode: "Live Gemini API (Dev Fallback)", ... } }
+ */
+async function generateRepurposedContent(voiceProfile, sourceContent) {
+  const mindsService = require('./mindsService');
+
+  const chunkedContent = mindsService.truncateOrChunkText(sourceContent);
+  const { fullPrompt } = mindsService.buildPromptParts(voiceProfile, chunkedContent);
+
+  console.log(`[GeminiService] Generating repurposed content via Gemini API... (Source text: ${chunkedContent.length.toLocaleString()} chars)`);
+
+  try {
+    const rawResponse = await generateWithFallback(fullPrompt);
+    const validatedJson = mindsService.extractAndValidateJson(rawResponse);
+
+    return {
+      success: true,
+      data: validatedJson,
+      meta: {
+        mode: 'Live Gemini API',
+        creditsUsed: 0,
+        skillTriggered: 'Gemini-Engine',
+        timestamp: new Date().toISOString()
+      }
+    };
+  } catch (err) {
+    console.error('[GeminiService] Content generation failed:', err.message);
+    throw err;
+  }
+}
+
 module.exports = {
   compressTranscriptWithTone,
   suggestCorrectionRule,
+  generateRepurposedContent,
   COMPRESSION_TRIGGER,
   TARGET_CHARS
 };

@@ -11,9 +11,18 @@ export default function Header({
   onToggleSidebar,
   mindsStatus,
   onOpenProfile,
-  onOpenOnboarding
+  onOpenOnboarding,
+  activeEngine = 'minds',
+  onSelectEngine
 }) {
   const credits = mindsStatus?.credits?.balance ?? 1551;
+
+  // Localhost / Dev Mode Check: ONLY renders on localhost / local development!
+  const isDevMode = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    Boolean(import.meta.env.DEV)
+  );
 
   return (
     <header style={{
@@ -81,8 +90,41 @@ export default function Header({
           )}
         </div>
 
-        {/* Right Section: Mind Status, Theme Switcher & Actions */}
+        {/* Right Section: Engine Switcher, Mind Status, Theme Switcher & Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {/* AI Engine Switcher (Available in Production & Dev) */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            backgroundColor: 'var(--theme-surface-hover)',
+            border: '1px solid var(--theme-accent)',
+            borderRadius: '6px',
+            padding: '4px 10px',
+            fontSize: '0.76rem'
+          }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--theme-accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              AI ENGINE:
+            </span>
+            <select
+              value={activeEngine || 'minds'}
+              onChange={(e) => onSelectEngine && onSelectEngine(e.target.value)}
+              style={{
+                backgroundColor: 'transparent',
+                border: 'none',
+                color: 'var(--theme-text-main)',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                outline: 'none',
+                cursor: 'pointer',
+                fontFamily: 'inherit'
+              }}
+            >
+              <option value="minds">⚡ Minds Engine</option>
+              <option value="gemini">✨ Gemini Engine</option>
+            </select>
+          </div>
+
           {/* Mind Status Pill */}
           <div className="editorial-card" style={{
             padding: '4px 10px',
