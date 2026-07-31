@@ -1,9 +1,4 @@
-// Production Deployed Backend URL (Render)
-const API_BASE = 'https://ghostwriter-rtkp.onrender.com/api';
-
-// Local development:
-// const API_BASE = 'http://localhost:5000/api';
-// const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export async function fetchVoiceProfile(userId = 'default-creator') {
   const res = await fetch(`${API_BASE}/profile?userId=${encodeURIComponent(userId)}`);
@@ -111,10 +106,10 @@ export async function ingestYouTubeTranscript(url) {
     body: JSON.stringify({ url })
   });
   if (!res.ok) {
-    let serverMsg = 'Subtitles are disabled for this video. Please paste text manually.';
+    let serverMsg = `HTTP ${res.status}: Subtitles could not be fetched for this video.`;
     try {
       const body = await res.json();
-      if (body.error) serverMsg = body.error;
+      if (body && body.error) serverMsg = body.error;
     } catch (_) {}
     throw new Error(serverMsg);
   }
