@@ -8,7 +8,6 @@ export default function MindStatusCard({ mindsStatus, compact }) {
   const mind = mindsStatus?.mind;
   const credits = mindsStatus?.credits;
 
-  // ── Compact mode: one-liner badge shown inside the input panel ──
   if (compact) {
     return (
       <div style={{
