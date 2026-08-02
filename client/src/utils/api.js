@@ -1,4 +1,9 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+const RENDER_BACKEND_URL = 'https://ghostwriter-rtkp.onrender.com/api';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ||
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+    ? RENDER_BACKEND_URL
+    : '/api');
 
 export async function fetchVoiceProfile(userId = 'default-creator') {
   const res = await fetch(`${API_BASE}/profile?userId=${encodeURIComponent(userId)}`);
