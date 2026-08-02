@@ -18,6 +18,45 @@ function isYouTubeUrl(url) {
   return /youtu\.be|youtube\.com/i.test(url);
 }
 
+// Tier 4 helper: Direct watch HTML parsing with Consent Cookie
+async function fetchDirectYoutubeTrack(videoId) {
+  const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const response = await fetch(watchUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Cookie': 'CONSENT=PENDING+999; YES+cb.20210328-17-p0.en+FX+410; SOCS=CAESEwgDEgk1ODE3OTQ1MjEaAmVuIAEaBgiA_LqqBg; PREF=tz=UTC'
+    }
+  });
+
+  if (!response.ok) throw new Error(`YouTube watch page returned HTTP ${response.status}`);
+  const html = await response.text();
+
+  const tracksMatch = html.match(/"captionTracks":\s*(\[.*?\])/);
+  if (!tracksMatch) throw new Error('captionTracks not present in watch HTML');
+
+  const tracks = JSON.parse(tracksMatch[1]);
+  if (!tracks || tracks.length === 0) throw new Error('No caption tracks found in JSON');
+
+  const selectedTrack = tracks.find(t => t.languageCode === 'en' || t.languageCode?.startsWith('en')) || tracks[0];
+  if (!selectedTrack?.baseUrl) throw new Error('Selected track missing baseUrl');
+
+  const xmlRes = await fetch(selectedTrack.baseUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Referer': watchUrl
+    }
+  });
+
+  const xmlText = await xmlRes.text();
+  if (!xmlText) throw new Error('Subtitle XML track was empty');
+
+  const textMatches = xmlText.match(/<text[^>]*>(.*?)<\/text>/gi);
+  if (!textMatches || textMatches.length === 0) throw new Error('No text nodes in subtitle XML');
+
+  return textMatches.map(m => m.replace(/<[^>]+>/g, ''));
+}
+
 // POST /api/ingest/youtube - Extract YouTube transcript
 router.post('/youtube', async (req, res) => {
   try {
@@ -73,6 +112,20 @@ router.post('/youtube', async (req, res) => {
       } catch (err3) {
         console.warn(`[Ingest API] Tier 3 failed for ${videoId}:`, err3.message);
         if (!extractionError) extractionError = err3;
+      }
+    }
+
+    // Tier 4: Direct watch HTML parsing with Consent Cookie
+    if (rawSegments.length === 0) {
+      try {
+        const directSegments = await fetchDirectYoutubeTrack(videoId);
+        if (directSegments && directSegments.length > 0) {
+          rawSegments = directSegments;
+          console.log(`[Ingest API] Tier 4 (direct HTML track) succeeded for ${videoId} (${rawSegments.length} segments)`);
+        }
+      } catch (err4) {
+        console.warn(`[Ingest API] Tier 4 failed for ${videoId}:`, err4.message);
+        if (!extractionError) extractionError = err4;
       }
     }
 
