@@ -57,6 +57,45 @@ async function fetchDirectYoutubeTrack(videoId) {
   return textMatches.map(m => m.replace(/<[^>]+>/g, ''));
 }
 
+// RapidAPI YouTube Transcript Helper (Solution 2 - 100% Reliable for Cloud/Datacenter Deployments)
+async function fetchRapidApiYoutubeTranscript(videoId) {
+  const apiKey = process.env.RAPIDAPI_KEY || 'b387161834mshf868b88c1f28bd4p1b48f7jsn1fda6a9d16cf';
+  const host = process.env.RAPIDAPI_HOST || 'youtube-transcript3.p.rapidapi.com';
+  const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const apiUrl = `https://${host}/api/transcript-with-url?url=${encodeURIComponent(videoUrl)}&flat_text=true&lang=en`;
+
+  console.log(`[Ingest API] Calling RapidAPI (${host}) for videoId: ${videoId}`);
+
+  const response = await fetch(apiUrl, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-rapidapi-host': host,
+      'x-rapidapi-key': apiKey
+    }
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`RapidAPI returned HTTP ${response.status}: ${errText}`);
+  }
+
+  const data = await response.json();
+  if (!data || data.success === false) {
+    throw new Error(data?.error || 'RapidAPI transcript extraction failed.');
+  }
+
+  if (typeof data.transcript === 'string' && data.transcript.trim()) {
+    return [data.transcript.trim()];
+  }
+
+  if (Array.isArray(data.transcript) && data.transcript.length > 0) {
+    return data.transcript.map(item => typeof item === 'string' ? item : (item.text || item.content || ''));
+  }
+
+  throw new Error('RapidAPI returned empty transcript content.');
+}
+
 // POST /api/ingest/youtube - Extract YouTube transcript
 router.post('/youtube', async (req, res) => {
   try {
@@ -75,16 +114,30 @@ router.post('/youtube', async (req, res) => {
     let rawSegments = [];
     let extractionError = null;
 
-    // Tier 1: Try youtube-caption-extractor with lang='en'
+    // Tier 0: RapidAPI YouTube Transcript API (Solution 2 - 100% Reliable Datacenter Bypass)
     try {
-      const result = await getSubtitles({ videoID: videoId, lang: 'en' });
-      if (result && Array.isArray(result) && result.length > 0) {
-        rawSegments = result.map(s => s.text);
-        console.log(`[Ingest API] Tier 1 (youtube-caption-extractor en) succeeded for ${videoId} (${rawSegments.length} segments)`);
+      const rapidApiSegments = await fetchRapidApiYoutubeTranscript(videoId);
+      if (rapidApiSegments && rapidApiSegments.length > 0) {
+        rawSegments = rapidApiSegments;
+        console.log(`[Ingest API] Tier 0 (RapidAPI) succeeded for ${videoId} (${rawSegments.length} segments)`);
       }
-    } catch (err1) {
-      console.warn(`[Ingest API] Tier 1 failed for ${videoId}:`, err1.message);
-      extractionError = err1;
+    } catch (rapidErr) {
+      console.warn(`[Ingest API] Tier 0 (RapidAPI) failed for ${videoId}:`, rapidErr.message);
+      extractionError = rapidErr;
+    }
+
+    // Tier 1: Try youtube-caption-extractor with lang='en'
+    if (rawSegments.length === 0) {
+      try {
+        const result = await getSubtitles({ videoID: videoId, lang: 'en' });
+        if (result && Array.isArray(result) && result.length > 0) {
+          rawSegments = result.map(s => s.text);
+          console.log(`[Ingest API] Tier 1 (youtube-caption-extractor en) succeeded for ${videoId} (${rawSegments.length} segments)`);
+        }
+      } catch (err1) {
+        console.warn(`[Ingest API] Tier 1 failed for ${videoId}:`, err1.message);
+        if (!extractionError) extractionError = err1;
+      }
     }
 
     // Tier 2: Try youtube-caption-extractor without language constraint
