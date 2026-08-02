@@ -59,8 +59,16 @@ async function fetchDirectYoutubeTrack(videoId) {
 
 // RapidAPI YouTube Transcript Helper (Solution 2 - 100% Reliable for Cloud/Datacenter Deployments)
 async function fetchRapidApiYoutubeTranscript(videoId) {
-  const apiKey = process.env.RAPIDAPI_KEY || 'b387161834mshf868b88c1f28bd4p1b48f7jsn1fda6a9d16cf';
-  const host = process.env.RAPIDAPI_HOST || 'youtube-transcript3.p.rapidapi.com';
+  let apiKey = process.env.RAPIDAPI_KEY;
+  if (!apiKey || apiKey === 'your_rapidapi_key_here') {
+    apiKey = 'b387161834mshf868b88c1f28bd4p1b48f7jsn1fda6a9d16cf';
+  }
+
+  let host = process.env.RAPIDAPI_HOST;
+  if (!host || host === 'youtube-transcripts.p.rapidapi.com') {
+    host = 'youtube-transcript3.p.rapidapi.com';
+  }
+
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
   const apiUrl = `https://${host}/api/transcript-with-url?url=${encodeURIComponent(videoUrl)}&flat_text=true&lang=en`;
 
