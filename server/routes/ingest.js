@@ -58,50 +58,61 @@ async function fetchDirectYoutubeTrack(videoId) {
 }
 
 // RapidAPI YouTube Transcript Helper (Solution 2 - 100% Reliable for Cloud/Datacenter Deployments)
-async function fetchRapidApiYoutubeTranscript(videoId) {
-  let apiKey = process.env.RAPIDAPI_KEY;
-  if (!apiKey || apiKey === 'your_rapidapi_key_here') {
-    apiKey = 'b387161834mshf868b88c1f28bd4p1b48f7jsn1fda6a9d16cf';
-  }
-
-  let host = process.env.RAPIDAPI_HOST;
-  if (!host || host === 'youtube-transcripts.p.rapidapi.com') {
-    host = 'youtube-transcript3.p.rapidapi.com';
-  }
-
-  const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const apiUrl = `https://${host}/api/transcript-with-url?url=${encodeURIComponent(videoUrl)}&flat_text=true&lang=en`;
-
-  console.log(`[Ingest API] Calling RapidAPI (${host}) for videoId: ${videoId}`);
-
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-rapidapi-host': host,
-      'x-rapidapi-key': apiKey
+function fetchRapidApiYoutubeTranscript(videoId) {
+  return new Promise((resolve, reject) => {
+    let apiKey = process.env.RAPIDAPI_KEY;
+    if (!apiKey || apiKey === 'your_rapidapi_key_here') {
+      apiKey = 'b387161834mshf868b88c1f28bd4p1b48f7jsn1fda6a9d16cf';
     }
+
+    let host = process.env.RAPIDAPI_HOST;
+    if (!host || host === 'youtube-transcripts.p.rapidapi.com') {
+      host = 'youtube-transcript3.p.rapidapi.com';
+    }
+
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const path = `/api/transcript-with-url?url=${encodeURIComponent(videoUrl)}&flat_text=true&lang=en`;
+
+    console.log(`[Ingest API] Querying RapidAPI https://${host}${path}`);
+
+    const https = require('https');
+    const req = https.request({
+      method: 'GET',
+      hostname: host,
+      path: path,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-rapidapi-host': host,
+        'x-rapidapi-key': apiKey
+      }
+    }, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          return reject(new Error(`RapidAPI returned HTTP ${res.statusCode}: ${body}`));
+        }
+        try {
+          const data = JSON.parse(body);
+          if (!data || data.success === false) {
+            return reject(new Error(data?.error || 'RapidAPI transcript extraction failed.'));
+          }
+          if (typeof data.transcript === 'string' && data.transcript.trim()) {
+            return resolve([data.transcript.trim()]);
+          }
+          if (Array.isArray(data.transcript) && data.transcript.length > 0) {
+            return resolve(data.transcript.map(item => typeof item === 'string' ? item : (item.text || item.content || '')));
+          }
+          reject(new Error('RapidAPI returned empty transcript content.'));
+        } catch (err) {
+          reject(new Error(`Failed to parse RapidAPI JSON: ${err.message}`));
+        }
+      });
+    });
+
+    req.on('error', (err) => reject(new Error(`RapidAPI network error: ${err.message}`)));
+    req.end();
   });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`RapidAPI returned HTTP ${response.status}: ${errText}`);
-  }
-
-  const data = await response.json();
-  if (!data || data.success === false) {
-    throw new Error(data?.error || 'RapidAPI transcript extraction failed.');
-  }
-
-  if (typeof data.transcript === 'string' && data.transcript.trim()) {
-    return [data.transcript.trim()];
-  }
-
-  if (Array.isArray(data.transcript) && data.transcript.length > 0) {
-    return data.transcript.map(item => typeof item === 'string' ? item : (item.text || item.content || ''));
-  }
-
-  throw new Error('RapidAPI returned empty transcript content.');
 }
 
 // POST /api/ingest/youtube - Extract YouTube transcript
