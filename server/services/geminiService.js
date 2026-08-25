@@ -28,12 +28,15 @@ const FALLBACK_MODELS = [
 /**
  * Execute generateContent across the fallback model list if a model hits rate limits (429).
  */
-async function generateWithFallback(prompt) {
+async function generateWithFallback(prompt, generationConfig = {}) {
   let lastError = null;
 
   for (const modelName of FALLBACK_MODELS) {
     try {
-      const model = genAI.getGenerativeModel({ model: modelName });
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: generationConfig
+      });
       const result = await model.generateContent(prompt);
       const responseText = result.response.text();
       if (responseText) {
@@ -216,7 +219,7 @@ async function generateRepurposedContent(voiceProfile, sourceContent) {
   console.log(`[GeminiService] Generating repurposed content via Gemini API... (Source text: ${chunkedContent.length.toLocaleString()} chars)`);
 
   try {
-    const rawResponse = await generateWithFallback(fullPrompt);
+    const rawResponse = await generateWithFallback(fullPrompt, { responseMimeType: 'application/json' });
     const validatedJson = mindsService.extractAndValidateJson(rawResponse);
 
     return {

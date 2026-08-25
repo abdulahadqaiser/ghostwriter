@@ -75,8 +75,13 @@ router.post('/', async (req, res) => {
     // Route request to selected engine (Gemini Dev Mode or Production Minds Engine)
     let result;
     if (activeEngine === 'gemini') {
-      console.log(`[Repurpose API] Executing generation via Live Gemini API (Dev Fallback)...`);
-      result = await generateGeminiRepurposedContent(profile, contentForMinds);
+      try {
+        console.log(`[Repurpose API] Executing generation via Live Gemini API...`);
+        result = await generateGeminiRepurposedContent(profile, contentForMinds);
+      } catch (geminiErr) {
+        console.warn(`[Repurpose API] Gemini engine generation failed (${geminiErr.message}). Falling back to Minds Engine...`);
+        result = await mindsService.generateRepurposedContent(profile, contentForMinds);
+      }
     } else {
       console.log(`[Repurpose API] Executing generation via Production Minds Engine...`);
       result = await mindsService.generateRepurposedContent(profile, contentForMinds);

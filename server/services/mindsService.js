@@ -318,7 +318,51 @@ Use this exact JSON structure:
       cleaned = cleaned.substring(firstBraceIndex, lastBraceIndex + 1);
     }
 
-    const parsed = JSON.parse(cleaned);
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.warn(`[MindsService] Initial JSON.parse failed (${parseErr.message}). Attempting multi-stage JSON repair...`);
+
+      // Attempt 1: Fix control characters and trailing commas
+      let sanitized = cleaned
+        .replace(/,\s*([\}\]])/g, '$1')
+        .replace(/[\r\n\t]/g, (m) => (m === '\r' ? '' : m === '\n' ? '\\n' : '\\t'));
+
+      try {
+        parsed = JSON.parse(sanitized);
+      } catch (err2) {
+        console.warn(`[MindsService] Sanitized JSON.parse failed. Attempting regex extraction fallback...`);
+        parsed = {};
+
+        // Regex extract x_thread array
+        const xThreadMatch = cleaned.match(/"x_thread"\s*:\s*\[([\s\S]*?)\]\s*,\s*"/i) || cleaned.match(/"x_thread"\s*:\s*\[([\s\S]*?)\]/i);
+        if (xThreadMatch && xThreadMatch[1]) {
+          const tweetMatches = xThreadMatch[1].match(/"([^"\\]*(?:\\.[^"\\]*)*)"/g);
+          if (tweetMatches) {
+            parsed.x_thread = tweetMatches.map(t => {
+              try { return JSON.parse(t); } catch (_) { return t.slice(1, -1); }
+            });
+          }
+        }
+
+        // Regex extract instagram_caption
+        const igMatch = cleaned.match(/"instagram_caption"\s*:\s*"([\s\S]*?)"\s*,\s*"/i) || cleaned.match(/"instagram_caption"\s*:\s*"([\s\S]*?)"\s*}/i);
+        if (igMatch && igMatch[1]) {
+          try { parsed.instagram_caption = JSON.parse(`"${igMatch[1]}"`); } catch (_) { parsed.instagram_caption = igMatch[1]; }
+        }
+
+        // Regex extract youtube_post
+        const ytMatch = cleaned.match(/"youtube_post"\s*:\s*"([\s\S]*?)"\s*}/i) || cleaned.match(/"youtube_post"\s*:\s*"([\s\S]*?)"\s*,\s*"/i);
+        if (ytMatch && ytMatch[1]) {
+          try { parsed.youtube_post = JSON.parse(`"${ytMatch[1]}"`); } catch (_) { parsed.youtube_post = ytMatch[1]; }
+        }
+
+        if (!parsed.x_thread || !parsed.instagram_caption || !parsed.youtube_post) {
+          throw parseErr;
+        }
+      }
+    }
 
     // Validate required fields
     if (!parsed || typeof parsed !== 'object') {
