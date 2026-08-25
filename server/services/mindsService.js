@@ -369,6 +369,10 @@ Use this exact JSON structure:
       throw new Error('Parsed output is not a JSON object');
     }
 
+    if (JSON.stringify(parsed).includes('<write actual tweet')) {
+      throw new Error('Parsed output contains literal prompt instructions instead of real generated content');
+    }
+
     if (!Array.isArray(parsed.x_thread) || parsed.x_thread.length === 0) {
       throw new Error('Missing or invalid "x_thread" array in generated JSON');
     }
@@ -483,22 +487,18 @@ Use this exact JSON structure:
         const items = await res.json();
         if (!Array.isArray(items) || items.length === 0) return null;
 
-        // Filter messages for senderType === 0 (Mind reply) or possessing output keys
+        // Filter strictly for Mind replies (senderType === 0) and ignore user prompts containing system instructions
         const mindReplies = items.filter(m => {
           const txt = m.messageText || m.text || m.content || '';
-          return m.senderType === 0 || (typeof txt === 'string' && (txt.includes('x_thread') || txt.includes('instagram_caption')));
+          const isUserPrompt = txt.includes('=== SOURCE CONTENT TO REWRITE ===') || txt.includes('<write actual tweet') || txt.includes('=== VOICE EXAMPLES ===');
+          return (m.senderType === 0 || m.senderType === '0') && !isUserPrompt && txt.trim().length > 10;
         });
 
         if (mindReplies.length > 0) {
           const last = mindReplies[mindReplies.length - 1];
           return last.messageText || last.text || last.content || null;
         }
-
-        // Fallback: check last item in array
-        const lastItem = items[items.length - 1];
-        if (lastItem && (lastItem.messageText || lastItem.text || lastItem.content)) {
-          return lastItem.messageText || lastItem.text || lastItem.content;
-        }
+        return null;
       } catch (err) {
         console.warn(`[MindsService] History fetch error for ${targetAlias}:`, err.message);
       }
@@ -548,9 +548,10 @@ Use this exact JSON structure:
                 const msgText = event.messageText || event.content || event.text || (event.data && (event.data.messageText || event.data.text || event.data.content)) || '';
 
                 const isAliasMatch = !event.alias || event.alias === confirmedAlias || event.conversationAlias === confirmedAlias;
-                const hasValidOutputKeys = typeof msgText === 'string' && (msgText.includes('x_thread') || msgText.includes('instagram_caption'));
+                const isUserPrompt = typeof msgText === 'string' && (msgText.includes('=== SOURCE CONTENT TO REWRITE ===') || msgText.includes('<write actual tweet') || msgText.includes('=== VOICE EXAMPLES ==='));
+                const isMindSender = event.senderType === 0 || event.senderType === '0';
 
-                if ((event.senderType === 0 || hasValidOutputKeys) && msgText && isAliasMatch) {
+                if (isMindSender && msgText && isAliasMatch && !isUserPrompt) {
                   console.log('[MindsService] Mind reply received via SSE stream!');
                   resolve(msgText);
                   return;
