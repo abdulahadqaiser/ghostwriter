@@ -1,0 +1,84 @@
+name: CI/CD Pipeline - Deploy Ghostwriter
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # -------------------------------------------------------------
+  # Job 1: Build & Verification Checks
+  # -------------------------------------------------------------
+  build-and-test:
+    name: Build & Test Applications
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      # Check Backend Dependencies & Syntax
+      - name: Install & Verify Backend
+        run: |
+          cd server
+          npm ci
+
+      # Check Frontend Build
+      - name: Install & Build Frontend
+        run: |
+          cd client
+          npm ci
+          npm run build
+
+  # -------------------------------------------------------------
+  # Job 2: Deploy Backend to Render
+  # -------------------------------------------------------------
+  deploy-backend:
+    name: Deploy Backend to Render
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render Deploy Hook
+        run: |
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          echo "Render deployment triggered successfully."
+
+  # -------------------------------------------------------------
+  # Job 3: Deploy Frontend to Vercel
+  # -------------------------------------------------------------
+  deploy-frontend:
+    name: Deploy Frontend to Vercel
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel Environment Information
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Project Artifacts
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy Project Artifacts to Vercel
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
